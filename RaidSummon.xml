@@ -260,12 +260,10 @@
 				this:RegisterForDrag("LeftButton")
 			</OnLoad>
 			<OnDragStart>
-					if IsShiftKeyDown() then
-						this:StartMoving();
-					end
+				this:StartMoving();
 			</OnDragStart>
 			<OnDragStop>
-					this:StopMovingOrSizing();
+				this:StopMovingOrSizing();
 			</OnDragStop>
 		</Scripts>
 	</Frame>
