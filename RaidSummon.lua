@@ -7,18 +7,18 @@ local RaidSummonOptions_DefaultSettings = {
 
 local function RaidSummon_Initialize()
 	if not RaidSummonOptions  then
-		RaidSummonOptions = {};
+		RaidSummonOptions = {}
 	end
 	for i in RaidSummonOptions_DefaultSettings do
 		if (not RaidSummonOptions[i]) then
-			RaidSummonOptions[i] = RaidSummonOptions_DefaultSettings[i];
+			RaidSummonOptions[i] = RaidSummonOptions_DefaultSettings[i]
 		end
 	end
 end
 
 function RaidSummon_EventFrame_OnLoad()
-	DEFAULT_CHAT_FRAME:AddMessage(string.format("RaidSummon version %s by %s", GetAddOnMetadata("RaidSummon", "Version"), GetAddOnMetadata("RaidSummon", "Author")));
-    this:RegisterEvent("VARIABLES_LOADED");
+	DEFAULT_CHAT_FRAME:AddMessage(string.format("RaidSummon version %s by %s", GetAddOnMetadata("RaidSummon", "Version"), GetAddOnMetadata("RaidSummon", "Author")))
+    this:RegisterEvent("VARIABLES_LOADED")
     this:RegisterEvent("CHAT_MSG_ADDON")
     this:RegisterEvent("CHAT_MSG_RAID")
 	this:RegisterEvent("CHAT_MSG_RAID_LEADER")
@@ -34,7 +34,7 @@ function RaidSummon_EventFrame_OnLoad()
 	RaidSummonDB = {}
 	-- Sync Summon Table between raiders ? (if in raid & raiders with unempty table)
 	--localization
-	RaidSummonLoc_Header = "RaidSummon v" .. GetAddOnMetadata("RaidSummon", "Version")
+	RaidSummonLoc_Header = "RaidSummon"
 end
 
 function RaidSummon_EventFrame_OnEvent()
@@ -42,17 +42,21 @@ function RaidSummon_EventFrame_OnEvent()
 		this:UnregisterEvent("VARIABLES_LOADED")
 		RaidSummon_Initialize()
 	elseif event == "CHAT_MSG_SAY" or event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_YELL" or event == "CHAT_MSG_WHISPER" then	
+		-- if (string.find(arg1, "^123") and UnitClass("player")~=arg2) then
 		if string.find(arg1, "^123") then
+			-- DEFAULT_CHAT_FRAME:AddMessage("CHAT_MSG")
 			SendAddonMessage(MSG_PREFIX_ADD, arg2, "RAID")
 		end
 	elseif event == "CHAT_MSG_ADDON" then
 		if arg1 == MSG_PREFIX_ADD then
-			if not RaidSummon_hasValue(RaidSummonDB, arg2) then
+			-- DEFAULT_CHAT_FRAME:AddMessage("CHAT_MSG_ADDON - RSAdd : " .. arg2)
+			if not RaidSummon_hasValue(RaidSummonDB, arg2) and UnitName("player")~=arg2 then
 				table.insert(RaidSummonDB, arg2)
 				RaidSummon_UpdateList()
 			end
 		elseif arg1 == MSG_PREFIX_REMOVE then
 			if RaidSummon_hasValue(RaidSummonDB, arg2) then
+				-- DEFAULT_CHAT_FRAME:AddMessage("CHAT_MSG_ADDON - RSRemove : " .. arg2)
 				for i, v in ipairs (RaidSummonDB) do
 					if v == arg2 then
 						table.remove(RaidSummonDB, i)
@@ -75,7 +79,7 @@ end
 
 --GUI
 function RaidSummon_NameListButton_OnClick(button)
-	local name = getglobal(this:GetName().."TextName"):GetText();
+	local name = getglobal(this:GetName().."TextName"):GetText()
 	local message, base_message, whisper_message, base_whisper_message, whisper_eviltwin_message, zone_message, subzone_message = ""
 	local bag,slot,texture,count = FindItem("Soul Shard")
 	local eviltwin_debuff = "Spell_Shadow_Charm"
@@ -93,7 +97,7 @@ function RaidSummon_NameListButton_OnClick(button)
 				TargetUnit(UnitID)
 			end
 		else
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummon - no Raid found")
+			DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummon|r : no raid found")
 		end
 	elseif button == "LeftButton" and not IsControlKeyDown() then
 		RaidSummon_GetRaidMembers()
@@ -118,7 +122,7 @@ function RaidSummon_NameListButton_OnClick(button)
 
 					-- Evil Twin check
 					for i=1,16 do
-						s=UnitDebuff("target", i);
+						s=UnitDebuff("target", i)
 						if(s) then
 							if (strfind(strlower(s), strlower(eviltwin_debuff))) then
 						        has_eviltwin = true
@@ -149,7 +153,7 @@ function RaidSummon_NameListButton_OnClick(button)
 						    end
 						end
 					else
-						-- TODO: Detect if spell is aborted/cancelled
+						-- TODO: Detect if spell is aborted/cancelled : use SpellStopCasting if sit ("You must be standing to do that")
 						CastSpellByName("Ritual of Summoning")
 
 						-- Send Raid Message
@@ -356,7 +360,7 @@ end
 function RaidSummon_GetRaidMembers()
     local raidnum = GetNumRaidMembers()
     if (raidnum > 0) then
-		RaidSummon_UnitIDDB = {};
+		RaidSummon_UnitIDDB = {}
 		for i = 1, raidnum do
 		    local rName, rRank, rSubgroup, rLevel, rClass = GetRaidRosterInfo(i)
 			RaidSummon_UnitIDDB[i] = {}
@@ -379,7 +383,7 @@ function FindItem(item)
        link = GetInventoryItemLink("player",i)
        if (link) then
            if (item == string.lower(ItemLinkToName(link))) then
-                return i, nil, GetInventoryItemTexture('player', i), GetInventoryItemCount('player', i);
+                return i, nil, GetInventoryItemTexture('player', i), GetInventoryItemCount('player', i)
            end
        end
 	end

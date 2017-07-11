@@ -72,14 +72,23 @@
 		</Layers>
 	</Button>
 
-	<Font name="RaidSummon_GameFontHeader" font="Fonts\FRIZQT__.TTF" virtual="true">
+	<Button name="RaidSummon_TitleButton_Template" virtual="true">
+		<Size>
+			<AbsDimension x="12" y="12"/>
+		</Size>
+		<Anchors>
+			<Anchor point="RIGHT"/>
+		</Anchors>
+	</Button>
+
+	<Font name="RaidSummon_GameFontHeader" font="Interface\AddOns\RaidSummon\fonts\Expressway.ttf" virtual="true">
 		<FontHeight>
-			<AbsValue val="8"/>
+			<AbsValue val="11"/>
 		</FontHeight>
-		<Color r="0.5" g="0.5" b="0.5"/>
+		<Color r="1" g="1" b="1"/>
 	</Font>
 	
-	<Frame name="RaidSummon_RequestFrame" frameStrata="DIALOG" toplevel="true" parent="UIParent" movable="true" enableMouse="true" hidden="true" clampedToScreen="true">
+	<Frame name="RaidSummon_RequestFrame" frameStrata="DIALOG" toplevel="true" parent="UIParent" movable="true" enableMouse="true" hidden="false" clampedToScreen="true">
 		<Size>
 			<AbsDimension x="100" y="180"/>
 		</Size>
@@ -90,30 +99,71 @@
 				</Offset>
 			</Anchor>
 		</Anchors>
-		<Layers>
-			<Layer level="OVERLAY">
-				<FontString name="RaidSummon_RequestFrame_Header" inherits="RaidSummon_GameFontHeader" text="RaidSummonLoc_Header">
-					<Anchors>
-						<Anchor point="TOPLEFT" relativeTo="$parent" relativePoint="TOPLEFT">
+		<Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" tile="true"></Backdrop>
+		<Frames>
+			<Frame name="RaidSummon_TitleFrame" hidden="false">
+				<Size>
+					<AbsDimension x="100" y="18"/>
+				</Size>
+				<Layers>
+					<Layer level="OVERLAY">
+						<FontString name="RaidSummon_RequestFrame_Header" inherits="RaidSummon_GameFontHeader" text="RaidSummonLoc_Header">
+							<Anchors>
+								<Anchor point="TOPLEFT" relativeTo="$parent" relativePoint="TOPLEFT">
+									<Offset>
+										<AbsDimension x="3" y="-2"/>
+									</Offset>
+								</Anchor>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" tile="true"></Backdrop>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+
+				<Frames>
+					<Button name="RaidSummon_CloseButton" inherits="RaidSummon_TitleButton_Template">
+						<Scripts>
+							<OnClick>
+								RaidSummon_RequestFrame:Hide()
+							</OnClick>
+							<OnLeave>
+							</OnLeave>
+						</Scripts>
+						<NormalTexture file="Interface\AddOns\RaidSummon\img\close"/>
+						<HighlightTexture file="Interface\AddOns\RaidSummon\img\close" alphaMode="ADD"/>
+						<Anchor point="RIGHT" relativeTo="RaidSummon_TitleFrame" relativePoint="LEFT">
 							<Offset>
-								<AbsDimension x="8" y="-7"/>
+								<AbsDimension x="-20"/>
 							</Offset>
 						</Anchor>
-					</Anchors>
-				</FontString>
-			</Layer>
-		</Layers>
-		<Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" edgeFile="Interface\Tooltips\UI-Tooltip-Border" tile="true">			<BackgroundInsets>
-				<AbsInset bottom="4" left="4" right="4" top="4"></AbsInset>
-			</BackgroundInsets>
-			<TileSize>
-				<AbsValue val="32"></AbsValue>
-			</TileSize>
-			<EdgeSize>
-				<AbsValue val="16"></AbsValue>
-			</EdgeSize>
-		</Backdrop>
-		<Frames>
+					</Button>
+
+					<Button name="RaidSummon_SettingsButton" inherits="RaidSummon_TitleButton_Template" hidden="true">
+						<Scripts>
+							<OnClick>
+								<!-- RaidSummon_RequestFrame:Show() -->
+							</OnClick>
+						</Scripts>
+						<NormalTexture file="Interface\AddOns\RaidSummon\img\settings"/>
+						<HighlightTexture file="Interface\AddOns\RaidSummon\img\settings" alphaMode="ADD"/>
+						<Anchors>
+							<Anchor point="RIGHT" relativeTo="RaidSummon_CloseButton" relativePoint="LEFT">
+								<Offset>
+									<AbsDimension x="-2"/>
+								</Offset>
+							</Anchor>
+						</Anchors>
+					</Button>
+				</Frames>
+			</Frame>
+
 			<Button name="RaidSummon_NameList1" inherits="RaidSummon_NameListButton" id="1" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
@@ -267,4 +317,5 @@
 			</OnDragStop>
 		</Scripts>
 	</Frame>
+	
 </Ui>
