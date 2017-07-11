@@ -17,7 +17,7 @@ local function RaidSummon_Initialize()
 end
 
 function RaidSummon_EventFrame_OnLoad()
-	DEFAULT_CHAT_FRAME:AddMessage(string.format("RaidSummon version %s by %s", GetAddOnMetadata("RaidSummon", "Version"), GetAddOnMetadata("RaidSummon", "Author")))
+	DEFAULT_CHAT_FRAME:AddMessage(string.format("RaidSummon version %s by %s. Type /rs or /raidsummon to show.", GetAddOnMetadata("RaidSummon", "Version"), GetAddOnMetadata("RaidSummon", "Author")))
     this:RegisterEvent("VARIABLES_LOADED")
     this:RegisterEvent("CHAT_MSG_ADDON")
     this:RegisterEvent("CHAT_MSG_RAID")
