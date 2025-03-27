@@ -11,6 +11,7 @@ A Warlock raid utility for WoW 1.12.1 that streamlines the summoning process wit
 - **Coordination**: Syncs summon lists between warlocks who have the addon
 - **Class Prioritization**: Automatically sorts warlocks to the top of the list
 - **Visual Clarity**: Uses class colors for easy identification
+- **Healthstone Announcements**: Automatically announces healing value of healthstones when casting Ritual of Souls based on Master Conjuror talent ranks
 
 ## Usage
 
@@ -29,6 +30,8 @@ The addon window only appears when players need summons and automatically hides 
 - `/rsp zone` - Toggle location info in messages
 - `/rsp whisper` - Toggle whisper notifications to summoned players
 - `/rsp shards` - Toggle display of shard count in announcements
+- `/rsp ritual` - Toggle Ritual of Souls announcements
+- `/rsp debug` - Toggle detailed debug messages
 
 ## SuperWoW Enhancement (Optional)
 
@@ -48,6 +51,7 @@ The addon will automatically detect SuperWoW and enable the enhanced coordinatio
 
 ## Recent Updates
 
+- Added Ritual of Souls announcements with Master Conjuror talent detection
 - Added SuperWoW integration for cross-addon coordination
 - Improved combat and instance mismatch detection
 - Added persistent window positioning

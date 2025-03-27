@@ -13,14 +13,67 @@ local SUMMON_FAIL_REASON = nil
 local SUMMON_MESSAGES = {}
 local RITUAL_OF_SUMMONING_SPELL_ID = 698 -- Spell ID for Ritual of Summoning
 
+local RITUAL_OF_SOULS_SPELL_ID = 45920 -- Spell ID for Ritual of Souls
+local MASTER_CONJUROR_TAB = 2 -- Demonology talent tab
+local MASTER_CONJUROR_INDEX = 1 -- Position in the Demonology tab (corrected index)
+
 local RaidSummonPlusOptions_DefaultSettings = {
 	whisper = true,
 	zone    = true,
     shards  = true,
     debug   = false,
-    frameX  = nil,    -- Position coordinates
-    frameY  = nil     -- Position coordinates
+    ritual  = true,    -- New option for Ritual of Souls announcements, on by default
+    frameX  = nil,     -- Position coordinates
+    frameY  = nil      -- Position coordinates
 }
+
+-- Function to get Master Conjuror talent rank with added debugging
+function RaidSummonPlus_GetMasterConjurorRank()
+    local name, iconTexture, tier, column, currentRank, maxRank = GetTalentInfo(MASTER_CONJUROR_TAB, MASTER_CONJUROR_INDEX)
+    
+    if RaidSummonPlusOptions.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Checking talent tab " .. MASTER_CONJUROR_TAB .. 
+            ", index " .. MASTER_CONJUROR_INDEX)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Found talent: " .. (name or "nil") .. 
+            ", Rank: " .. (currentRank or "nil") .. "/" .. (maxRank or "nil"))
+    end
+    
+    return currentRank or 0
+end
+
+-- Function to get healthstone healing value based on talent points
+function RaidSummonPlus_GetHealthstoneHealValue(talentRank)
+    if talentRank == 2 then
+        return 1400
+    elseif talentRank == 1 then
+        return 1320
+    else
+        return 1200
+    end
+end
+
+-- Add a talent debug function
+function RaidSummonPlus_DebugTalents()
+    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Scanning all Warlock talents")
+    
+    for tab=1,3 do
+        local tabName = "Unknown"
+        if tab == 1 then tabName = "Affliction"
+        elseif tab == 2 then tabName = "Demonology"
+        elseif tab == 3 then tabName = "Destruction"
+        end
+        
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Tab " .. tab .. " (" .. tabName .. ")")
+        
+        for index=1,20 do
+            local name, iconTexture, tier, column, currentRank, maxRank = GetTalentInfo(tab, index)
+            if name then
+                DEFAULT_CHAT_FRAME:AddMessage("  Index " .. index .. ": " .. name .. 
+                    " (Rank " .. currentRank .. "/" .. maxRank .. ")")
+            end
+        end
+    end
+end
 
 local function RaidSummonPlus_Initialize()
 	if not RaidSummonPlusOptions then
@@ -82,18 +135,19 @@ function RaidSummonPlus_GetNameFromGUID(guid)
 end
 
 function RaidSummonPlus_EventFrame_OnLoad()
-	DEFAULT_CHAT_FRAME:AddMessage(string.format("RaidSummonPlus version %s by %s. Type /rsp or /raidsummonplus to show.", GetAddOnMetadata("RaidSummonPlus", "Version"), GetAddOnMetadata("RaidSummonPlus", "Author")))
+    DEFAULT_CHAT_FRAME:AddMessage(string.format("RaidSummonPlus version %s by %s. Type /rsp or /raidsummonplus to show.", GetAddOnMetadata("RaidSummonPlus", "Version"), GetAddOnMetadata("RaidSummonPlus", "Author")))
     
     -- Register standard events
     this:RegisterEvent("VARIABLES_LOADED")
     this:RegisterEvent("PLAYER_ENTERING_WORLD")
     this:RegisterEvent("CHAT_MSG_ADDON")
     this:RegisterEvent("CHAT_MSG_RAID")
-	this:RegisterEvent("CHAT_MSG_RAID_LEADER")
+    this:RegisterEvent("CHAT_MSG_RAID_LEADER")
     this:RegisterEvent("CHAT_MSG_SAY")
     this:RegisterEvent("CHAT_MSG_YELL")
     this:RegisterEvent("CHAT_MSG_WHISPER")
-    this:RegisterEvent("CHAT_MSG_SPELL_FAILED_LOCALPLAYER") -- Register for spell failure events
+    this:RegisterEvent("CHAT_MSG_SPELL_FAILED_LOCALPLAYER")
+    this:RegisterEvent("SPELLCAST_START") -- Add this line
     
     -- Register SuperWoW-specific events if available
     if isSuperWoWAvailable then
@@ -180,15 +234,15 @@ function RaidSummonPlus_EventFrame_OnEvent()
             if string.find(string.lower(arg1), "combat") then
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : |cffff0000Failed to summon|r - " .. arg1)
                 
-                -- Whisper the target that they're in combat
-                if SUMMON_TARGET and RaidSummonPlusOptions.whisper then
+                -- Always send combat failure message regardless of whisper setting
+                if SUMMON_TARGET then
                     SendChatMessage("Summoning failed - You are in combat", "WHISPER", nil, SUMMON_TARGET)
                 end
             elseif string.find(string.lower(arg1), "instance") then
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : |cffff0000Failed to summon|r - " .. arg1)
                 
-                -- Updated instance message
-                if SUMMON_TARGET and RaidSummonPlusOptions.whisper then
+                -- Always send instance failure message regardless of whisper setting
+                if SUMMON_TARGET then
                     SendChatMessage("Summoning failed - You are not in the correct instance yet", "WHISPER", nil, SUMMON_TARGET)
                 end
             else
@@ -253,6 +307,43 @@ function RaidSummonPlus_EventFrame_OnEvent()
                         end
                     end
                 end
+            end
+        end
+    elseif event == "SPELLCAST_START" then
+        -- Add debug message to see what spell is being cast
+        if RaidSummonPlusOptions.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : SPELLCAST_START detected: " .. tostring(arg1))
+        end
+        
+        -- Try multiple possible spell name formats
+        if arg1 == "Ritual of Souls" or arg1 == "ritual of souls" or string.find(string.lower(arg1 or ""), "ritual of souls") then
+            -- If ritual announcements are disabled, exit early
+            if not RaidSummonPlusOptions.ritual then
+                return
+            end
+            
+            -- If debug is enabled, scan all talents to help locate Master Conjuror
+            if RaidSummonPlusOptions.debug then
+                RaidSummonPlus_DebugTalents()
+            end
+            
+            -- Get talent rank and healing value
+            local talentRank = RaidSummonPlus_GetMasterConjurorRank()
+            local healValue = RaidSummonPlus_GetHealthstoneHealValue(talentRank)
+            
+            -- Create announcement message
+            local message = "Casting Ritual of Souls - Healthstones will heal for " .. healValue .. " HP"
+            if talentRank > 0 then
+                message = message .. " (Master Conjuror Rank " .. talentRank .. ")"
+            end
+            
+            -- Send to raid chat
+            if UnitInRaid("player") then
+                SendChatMessage(message, "RAID")
+            elseif GetNumPartyMembers() > 0 then
+                SendChatMessage(message, "PARTY")
+            else
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. message)
             end
         end
 	end
@@ -547,12 +638,13 @@ end
 function RaidSummonPlus_SlashCommand(msg)
 	if msg == "help" then
 		DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus usage:")
-		DEFAULT_CHAT_FRAME:AddMessage("/rsp or /raidsummonplus or /rs or /raidsummon { help | show | zone | whisper | shards | debug }")
+		DEFAULT_CHAT_FRAME:AddMessage("/rsp or /raidsummonplus or /rs or /raidsummon { help | show | zone | whisper | shards | ritual | debug }")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9help|r: prints out this help")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9show|r: shows the current summon list")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9zone|r: toggles zoneinfo in /ra and /w")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9whisper|r: toggles the usage of /w")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9shards|r: toggles shards count when you announce a summon in /ra")
+		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9ritual|r: toggles Ritual of Souls announcements")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9debug|r: toggles additional debug messages")
 		DEFAULT_CHAT_FRAME:AddMessage("To drag the frame use left mouse button")
         
@@ -582,7 +674,7 @@ function RaidSummonPlus_SlashCommand(msg)
 			RaidSummonPlusOptions["whisper"] = true
 			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - whisper: |cff00ff00enabled|r")
 		end
-	 elseif msg == "shards" then
+	elseif msg == "shards" then
 		if RaidSummonPlusOptions["shards"] == true then
 	       RaidSummonPlusOptions["shards"] = false
 	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - shards: |cffff0000disabled|r")
@@ -590,7 +682,15 @@ function RaidSummonPlus_SlashCommand(msg)
 	       RaidSummonPlusOptions["shards"] = true
 	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - shards: |cff00ff00enabled|r")
 		end
-		elseif msg == "debug" then
+	elseif msg == "ritual" then
+		if RaidSummonPlusOptions["ritual"] == true then
+			RaidSummonPlusOptions["ritual"] = false
+			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - Ritual of Souls announcements: |cffff0000disabled|r")
+		elseif RaidSummonPlusOptions["ritual"] == false then
+			RaidSummonPlusOptions["ritual"] = true
+			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - Ritual of Souls announcements: |cff00ff00enabled|r")
+		end
+	elseif msg == "debug" then
 		if RaidSummonPlusOptions["debug"] == true then
 	       RaidSummonPlusOptions["debug"] = false
 	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - debug: |cffff0000disabled|r")
