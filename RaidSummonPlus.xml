@@ -1,17 +1,17 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/">
-<script file="RaidSummon.lua"/>
-	<Frame name="RaidSummon_EventFrame" parent="UIParent" hidden="true">
+<script file="RaidSummonPlus.lua"/>
+	<Frame name="RaidSummonPlus_EventFrame" parent="UIParent" hidden="true">
 		<Scripts>
 			<OnLoad>
-				RaidSummon_EventFrame_OnLoad();
+				RaidSummonPlus_EventFrame_OnLoad();
 			</OnLoad>
 			<OnEvent>
-				RaidSummon_EventFrame_OnEvent();
+				RaidSummonPlus_EventFrame_OnEvent();
 			</OnEvent>
 		</Scripts>
 	</Frame>
 	
-	<Button name="RaidSummon_NameListButton" virtual="true">
+	<Button name="RaidSummonPlus_NameListButton" virtual="true">
 		<Size>
 			<AbsDimension x="75" y="16"/>
 		</Size>
@@ -21,7 +21,7 @@
 				this:SetBackdropColor(0.8, 0.8, 0.8, 0.0);
 			</OnLoad>
 			<OnClick>
-				RaidSummon_NameListButton_OnClick(arg1);
+				RaidSummonPlus_NameListButton_OnClick(arg1);
 			</OnClick>
 			<OnEnter>
 			</OnEnter>
@@ -72,7 +72,7 @@
 		</Layers>
 	</Button>
 
-	<Button name="RaidSummon_TitleButton_Template" virtual="true">
+	<Button name="RaidSummonPlus_TitleButton_Template" virtual="true">
 		<Size>
 			<AbsDimension x="12" y="12"/>
 		</Size>
@@ -81,14 +81,14 @@
 		</Anchors>
 	</Button>
 
-	<Font name="RaidSummon_GameFontHeader" font="Interface\AddOns\RaidSummon\fonts\Expressway.ttf" virtual="true">
+	<Font name="RaidSummonPlus_GameFontHeader" font="Interface\AddOns\RaidSummonPlus\fonts\Expressway.ttf" virtual="true">
 		<FontHeight>
 			<AbsValue val="11"/>
 		</FontHeight>
 		<Color r="1" g="1" b="1"/>
 	</Font>
 	
-	<Frame name="RaidSummon_RequestFrame" frameStrata="DIALOG" toplevel="true" parent="UIParent" movable="true" enableMouse="true" hidden="false" clampedToScreen="true">
+	<Frame name="RaidSummonPlus_RequestFrame" frameStrata="DIALOG" toplevel="true" parent="UIParent" movable="true" enableMouse="true" hidden="true" clampedToScreen="true">
 		<Size>
 			<AbsDimension x="100" y="180"/>
 		</Size>
@@ -101,13 +101,13 @@
 		</Anchors>
 		<Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" tile="true"></Backdrop>
 		<Frames>
-			<Frame name="RaidSummon_TitleFrame" hidden="false">
+			<Frame name="RaidSummonPlus_TitleFrame" hidden="false">
 				<Size>
 					<AbsDimension x="100" y="18"/>
 				</Size>
 				<Layers>
 					<Layer level="OVERLAY">
-						<FontString name="RaidSummon_RequestFrame_Header" inherits="RaidSummon_GameFontHeader" text="RaidSummonLoc_Header">
+						<FontString name="RaidSummonPlus_RequestFrame_Header" inherits="RaidSummonPlus_GameFontHeader" text="RaidSummonPlusLoc_Header">
 							<Anchors>
 								<Anchor point="TOPLEFT" relativeTo="$parent" relativePoint="TOPLEFT">
 									<Offset>
@@ -128,33 +128,33 @@
 				</Anchors>
 
 				<Frames>
-					<Button name="RaidSummon_CloseButton" inherits="RaidSummon_TitleButton_Template">
+					<Button name="RaidSummonPlus_CloseButton" inherits="RaidSummonPlus_TitleButton_Template">
 						<Scripts>
 							<OnClick>
-								RaidSummon_RequestFrame:Hide()
+								RaidSummonPlus_RequestFrame:Hide()
 							</OnClick>
 							<OnLeave>
 							</OnLeave>
 						</Scripts>
-						<NormalTexture file="Interface\AddOns\RaidSummon\img\close"/>
-						<HighlightTexture file="Interface\AddOns\RaidSummon\img\close" alphaMode="ADD"/>
-						<Anchor point="RIGHT" relativeTo="RaidSummon_TitleFrame" relativePoint="LEFT">
+						<NormalTexture file="Interface\AddOns\RaidSummonPlus\img\close"/>
+						<HighlightTexture file="Interface\AddOns\RaidSummonPlus\img\close" alphaMode="ADD"/>
+						<Anchor point="RIGHT" relativeTo="RaidSummonPlus_TitleFrame" relativePoint="LEFT">
 							<Offset>
 								<AbsDimension x="-20"/>
 							</Offset>
 						</Anchor>
 					</Button>
 
-					<Button name="RaidSummon_SettingsButton" inherits="RaidSummon_TitleButton_Template" hidden="true">
+					<Button name="RaidSummonPlus_SettingsButton" inherits="RaidSummonPlus_TitleButton_Template" hidden="true">
 						<Scripts>
 							<OnClick>
-								<!-- RaidSummon_RequestFrame:Show() -->
+								<!-- RaidSummonPlus_RequestFrame:Show() -->
 							</OnClick>
 						</Scripts>
-						<NormalTexture file="Interface\AddOns\RaidSummon\img\settings"/>
-						<HighlightTexture file="Interface\AddOns\RaidSummon\img\settings" alphaMode="ADD"/>
+						<NormalTexture file="Interface\AddOns\RaidSummonPlus\img\settings"/>
+						<HighlightTexture file="Interface\AddOns\RaidSummonPlus\img\settings" alphaMode="ADD"/>
 						<Anchors>
-							<Anchor point="RIGHT" relativeTo="RaidSummon_CloseButton" relativePoint="LEFT">
+							<Anchor point="RIGHT" relativeTo="RaidSummonPlus_CloseButton" relativePoint="LEFT">
 								<Offset>
 									<AbsDimension x="-2"/>
 								</Offset>
@@ -164,7 +164,7 @@
 				</Frames>
 			</Frame>
 
-			<Button name="RaidSummon_NameList1" inherits="RaidSummon_NameListButton" id="1" hidden="true">
+			<Button name="RaidSummonPlus_NameList1" inherits="RaidSummonPlus_NameListButton" id="1" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
@@ -178,126 +178,126 @@
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList2" inherits="RaidSummon_NameListButton" id="2" hidden="true">
+			<Button name="RaidSummonPlus_NameList2" inherits="RaidSummonPlus_NameListButton" id="2" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList1" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList1" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList3" inherits="RaidSummon_NameListButton" id="3" hidden="true">
+			<Button name="RaidSummonPlus_NameList3" inherits="RaidSummonPlus_NameListButton" id="3" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList2" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList2" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList4" inherits="RaidSummon_NameListButton" id="4" hidden="true">
+			<Button name="RaidSummonPlus_NameList4" inherits="RaidSummonPlus_NameListButton" id="4" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList3" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList3" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList5" inherits="RaidSummon_NameListButton" id="5" hidden="true">
+			<Button name="RaidSummonPlus_NameList5" inherits="RaidSummonPlus_NameListButton" id="5" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList4" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList4" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList6" inherits="RaidSummon_NameListButton" id="6" hidden="true">
+			<Button name="RaidSummonPlus_NameList6" inherits="RaidSummonPlus_NameListButton" id="6" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList5" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList5" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList7" inherits="RaidSummon_NameListButton" id="7" hidden="true">
+			<Button name="RaidSummonPlus_NameList7" inherits="RaidSummonPlus_NameListButton" id="7" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList6" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList6" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList8" inherits="RaidSummon_NameListButton" id="8" hidden="true">
+			<Button name="RaidSummonPlus_NameList8" inherits="RaidSummonPlus_NameListButton" id="8" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList7" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList7" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList9" inherits="RaidSummon_NameListButton" id="9" hidden="true">
+			<Button name="RaidSummonPlus_NameList9" inherits="RaidSummonPlus_NameListButton" id="9" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList8" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList8" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
 					</Anchor>
 				</Anchors>
 			</Button>
-			<Button name="RaidSummon_NameList10" inherits="RaidSummon_NameListButton" id="10" hidden="true">
+			<Button name="RaidSummonPlus_NameList10" inherits="RaidSummonPlus_NameListButton" id="10" hidden="true">
 				<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
 					<TileSize>
 						<AbsValue val="16"/>
 					</TileSize>
 				</Backdrop>
 				<Anchors>
-					<Anchor point="TOPLEFT" relativeTo="RaidSummon_NameList9" relativePoint="BOTTOMLEFT">
+					<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_NameList9" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="0" y="0"/>
 						</Offset>
@@ -314,6 +314,8 @@
 			</OnDragStart>
 			<OnDragStop>
 				this:StopMovingOrSizing();
+				-- Save position when frame is dropped
+				RaidSummonPlus_SaveFramePosition();
 			</OnDragStop>
 		</Scripts>
 	</Frame>

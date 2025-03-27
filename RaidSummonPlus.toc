@@ -1,7 +1,7 @@
-## Title: RaidSummon
+## Title: RaidSummonPlus
 ## Notes: A small helper for Warlock Summons
 ## Version: 1.1.1
 ## Author: |cff02bf02Luise|r
 ## Interface: 11200
-## SavedVariables: RaidSummonOptions
-RaidSummon.xml
+## SavedVariables: RaidSummonPlusOptions
+RaidSummonPlus.xml
