@@ -93,7 +93,21 @@ function RaidSummonPlus_EventFrame_OnEvent()
         end
 	elseif event == "CHAT_MSG_SAY" or event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_YELL" or event == "CHAT_MSG_WHISPER" then	
 		if string.find(arg1, "^123") then
+            -- Debug message to confirm detection
+            if RaidSummonPlusOptions.debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Detected 123 from player: " .. arg2)
+            end
+            
+            -- Add directly to our own list
+            if not RaidSummonPlus_hasValue(RaidSummonPlusDB, arg2) and UnitName("player")~=arg2 then
+                table.insert(RaidSummonPlusDB, arg2)
+            end
+            
+            -- Sync with other addon users in raid
 			SendAddonMessage(MSG_PREFIX_ADD, arg2, "RAID")
+            
+            -- Update the UI
+            RaidSummonPlus_UpdateList()
 		end
 	elseif event == "CHAT_MSG_ADDON" then
 		if arg1 == MSG_PREFIX_ADD then
@@ -107,6 +121,7 @@ function RaidSummonPlus_EventFrame_OnEvent()
 					if v == arg2 then
 						table.remove(RaidSummonPlusDB, i)
 						RaidSummonPlus_UpdateList()
+                        break
 					end
 				end
 			end
@@ -117,13 +132,25 @@ function RaidSummonPlus_EventFrame_OnEvent()
             -- Extract failure reason
             SUMMON_FAIL_REASON = arg1
             
-            -- If failure mentions combat, notify the player
+            -- Check for specific failure reasons
             if string.find(string.lower(arg1), "combat") then
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : |cffff0000Failed to summon|r - " .. arg1)
                 
                 -- Whisper the target that they're in combat
                 if SUMMON_TARGET and RaidSummonPlusOptions.whisper then
                     SendChatMessage("Cannot summon you - you are in combat", "WHISPER", nil, SUMMON_TARGET)
+                end
+            elseif string.find(string.lower(arg1), "instance") then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : |cffff0000Failed to summon|r - " .. arg1)
+                
+                -- Whisper the target that they need to be in the same instance
+                if SUMMON_TARGET and RaidSummonPlusOptions.whisper then
+                    SendChatMessage("Cannot summon you - you must be in the same instance as me. Please enter my instance first.", "WHISPER", nil, SUMMON_TARGET)
+                end
+            else
+                -- For any other failure reasons
+                if RaidSummonPlusOptions.debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : |cffff0000Failed to summon|r - " .. arg1)
                 end
             end
             
