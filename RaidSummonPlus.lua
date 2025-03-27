@@ -182,14 +182,14 @@ function RaidSummonPlus_EventFrame_OnEvent()
                 
                 -- Whisper the target that they're in combat
                 if SUMMON_TARGET and RaidSummonPlusOptions.whisper then
-                    SendChatMessage("Cannot summon you - you are in combat", "WHISPER", nil, SUMMON_TARGET)
+                    SendChatMessage("Summoning failed - You are in combat", "WHISPER", nil, SUMMON_TARGET)
                 end
             elseif string.find(string.lower(arg1), "instance") then
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : |cffff0000Failed to summon|r - " .. arg1)
                 
-                -- Whisper the target that they need to be in the same instance
+                -- Updated instance message
                 if SUMMON_TARGET and RaidSummonPlusOptions.whisper then
-                    SendChatMessage("Cannot summon you - you must be in the same instance as me. Please enter my instance first.", "WHISPER", nil, SUMMON_TARGET)
+                    SendChatMessage("Summoning failed - You are not in the correct instance yet", "WHISPER", nil, SUMMON_TARGET)
                 end
             else
                 -- For any other failure reasons
