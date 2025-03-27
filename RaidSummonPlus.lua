@@ -1,5 +1,9 @@
 -- RaidSummonPlus.lua
 -- Enhanced version of RaidSummon addon with persistent window position, improved frame visibility, and combat detection
+-- Now with optional SuperWoW integration
+
+-- Check if SuperWoW is available
+local isSuperWoWAvailable = (SUPERWOW_VERSION ~= nil)
 
 -- Variables for tracking summon status
 local SUMMON_PENDING = false
@@ -7,6 +11,7 @@ local SUMMON_TARGET = nil
 local SUMMON_TIMER = nil
 local SUMMON_FAIL_REASON = nil
 local SUMMON_MESSAGES = {}
+local RITUAL_OF_SUMMONING_SPELL_ID = 698 -- Spell ID for Ritual of Summoning
 
 local RaidSummonPlusOptions_DefaultSettings = {
 	whisper = true,
@@ -45,8 +50,41 @@ function RaidSummonPlus_RestoreFramePosition()
     end
 end
 
+-- Helper function to get player name from GUID (for SuperWoW integration)
+function RaidSummonPlus_GetNameFromGUID(guid)
+    if not guid then return nil end
+    
+    -- Try to find the player with this GUID in the raid
+    local raidSize = GetNumRaidMembers()
+    if raidSize > 0 then
+        for i=1, raidSize do
+            local unitID = "raid"..i
+            local unitGUID = UnitExists(unitID) -- SuperWoW enhancement returns GUID as second value
+            if unitGUID == guid then
+                return UnitName(unitID)
+            end
+        end
+    end
+    
+    -- If not found in raid, check party
+    local partySize = GetNumPartyMembers()
+    if partySize > 0 then
+        for i=1, partySize do
+            local unitID = "party"..i
+            local unitGUID = UnitExists(unitID)
+            if unitGUID == guid then
+                return UnitName(unitID)
+            end
+        end
+    end
+    
+    return nil
+end
+
 function RaidSummonPlus_EventFrame_OnLoad()
 	DEFAULT_CHAT_FRAME:AddMessage(string.format("RaidSummonPlus version %s by %s. Type /rsp or /raidsummonplus to show.", GetAddOnMetadata("RaidSummonPlus", "Version"), GetAddOnMetadata("RaidSummonPlus", "Author")))
+    
+    -- Register standard events
     this:RegisterEvent("VARIABLES_LOADED")
     this:RegisterEvent("PLAYER_ENTERING_WORLD")
     this:RegisterEvent("CHAT_MSG_ADDON")
@@ -56,6 +94,12 @@ function RaidSummonPlus_EventFrame_OnLoad()
     this:RegisterEvent("CHAT_MSG_YELL")
     this:RegisterEvent("CHAT_MSG_WHISPER")
     this:RegisterEvent("CHAT_MSG_SPELL_FAILED_LOCALPLAYER") -- Register for spell failure events
+    
+    -- Register SuperWoW-specific events if available
+    if isSuperWoWAvailable then
+        this:RegisterEvent("UNIT_CASTEVENT")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : SuperWoW detected - enhanced summoning coordination enabled!")
+    end
     
     -- Commands
 	SlashCmdList["RAIDSUMMONPLUS"] = RaidSummonPlus_SlashCommand
@@ -161,6 +205,54 @@ function RaidSummonPlus_EventFrame_OnEvent()
             -- Cancel timer if it's running
             if SUMMON_TIMER then
                 SUMMON_TIMER = nil
+            end
+        end
+    -- SuperWoW-specific event handling
+    elseif event == "UNIT_CASTEVENT" and isSuperWoWAvailable then
+        local casterGUID = arg1
+        local targetGUID = arg2
+        local eventType = arg3
+        local spellID = tonumber(arg4)
+        
+        -- Check if this is a Ritual of Summoning spell
+        if spellID == RITUAL_OF_SUMMONING_SPELL_ID then
+            -- Don't process our own summons - we handle those separately
+            local playerGUID = UnitExists("player")
+            if casterGUID ~= playerGUID then
+                if eventType == "START" then
+                    -- Process summon started by another warlock
+                    local targetName = nil
+                    
+                    -- For Ritual of Summoning, we likely need to determine the target in a different way
+                    -- as the spell is technically cast on the summoning portal
+                    -- We can try to detect by seeing who they're targeting
+                    for i=1, GetNumRaidMembers() do
+                        local unitID = "raid"..i
+                        local unitGUID = UnitExists(unitID)
+                        if unitGUID == casterGUID then
+                            -- Found the caster, check their target
+                            if UnitExists(unitID.."target") then
+                                targetName = UnitName(unitID.."target")
+                                break
+                            end
+                        end
+                    end
+                    
+                    -- If we found a potential target and they're in our summon list
+                    if targetName and RaidSummonPlus_hasValue(RaidSummonPlusDB, targetName) then
+                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Another warlock is summoning " .. targetName)
+                        
+                        -- Remove from our list
+                        for i, v in ipairs(RaidSummonPlusDB) do
+                            if v == targetName then
+                                SendAddonMessage(MSG_PREFIX_REMOVE, targetName, "RAID")
+                                table.remove(RaidSummonPlusDB, i)
+                                RaidSummonPlus_UpdateList()
+                                break
+                            end
+                        end
+                    end
+                end
             end
         end
 	end
@@ -463,6 +555,13 @@ function RaidSummonPlus_SlashCommand(msg)
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9shards|r: toggles shards count when you announce a summon in /ra")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9debug|r: toggles additional debug messages")
 		DEFAULT_CHAT_FRAME:AddMessage("To drag the frame use left mouse button")
+        
+        -- Display SuperWoW status
+        if isSuperWoWAvailable then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9SuperWoW|r: |cff00ff00Detected|r - Enhanced warlock coordination enabled")
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9SuperWoW|r: |cffff0000Not detected|r - Using standard coordination")
+        end
 	elseif msg == "show" then
 		for i, v in ipairs(RaidSummonPlusDB) do
 			DEFAULT_CHAT_FRAME:AddMessage(tostring(v))
