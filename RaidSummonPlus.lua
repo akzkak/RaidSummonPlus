@@ -27,7 +27,7 @@ local function RaidSummonPlus_Initialize()
 		RaidSummonPlusOptions = {}
 	end
 	for i in RaidSummonPlusOptions_DefaultSettings do
-		if (not RaidSummonPlusOptions[i]) then
+		if (RaidSummonPlusOptions[i] == nil) then  -- Changed from "not RaidSummonPlusOptions[i]"
 			RaidSummonPlusOptions[i] = RaidSummonPlusOptions_DefaultSettings[i]
 		end
 	end
