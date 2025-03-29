@@ -1,7 +1,9 @@
 ## Title: RaidSummonPlus
 ## Notes: A small helper for Warlock Summons
-## Version: 1.1.1
-## Author: |cff02bf02Luise|r
+## Version: 2.0.0
+## Author: |cff02bf02Luise|r|Paduk
 ## Interface: 11200
 ## SavedVariables: RaidSummonPlusOptions
 RaidSummonPlus.xml
+RaidSummonPlusSoulstone.lua
+RaidSummonPlusRitualofSouls.lua

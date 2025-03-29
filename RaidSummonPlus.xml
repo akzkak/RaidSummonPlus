@@ -24,8 +24,10 @@
 				RaidSummonPlus_NameListButton_OnClick(arg1);
 			</OnClick>
 			<OnEnter>
+				RaidSummonPlus_NameListButton_OnEnter();
 			</OnEnter>
 			<OnLeave>
+				RaidSummonPlus_NameListButton_OnLeave();
 			</OnLeave>
 		</Scripts>
 		<NormalText name="$parentText" inherits="GameFontNormalSmall" justifyH="LEFT">
@@ -40,18 +42,7 @@
 				</Anchor>
 			</Anchors> 
 		</NormalText>
-		<HighlightTexture file="Interface\QuestFrame\UI-QuestTitleHighlight" alphaMode="ADD">
-			<Size>
-				<AbsDimension x="75" y="16"/>
-			</Size>
-			<Anchors>
-				<Anchor point="TOP">
-					<Offset>
-						<AbsDimension x="5" y="0"/>
-					</Offset>
-				</Anchor>
-			</Anchors>
-		</HighlightTexture>
+		<!-- No HighlightTexture element at all -->
 		<Frames>
 		</Frames>
 		<Layers>
@@ -304,6 +295,156 @@
 					</Anchor>
 				</Anchors>
 			</Button>
+            
+            <!-- Soulstone tracking frame with styled buttons to match main list -->
+            <Frame name="RaidSummonPlus_SoulstoneFrame" hidden="false">
+                <Size>
+                    <AbsDimension x="100" y="100"/> <!-- Increased height to accommodate buttons -->
+                </Size>
+                <Anchors>
+                    <Anchor point="TOPLEFT" relativeTo="$parent" relativePoint="BOTTOMLEFT">
+                        <Offset>
+                            <AbsDimension x="0" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" tile="true"></Backdrop>
+                <Layers>
+                    <Layer level="OVERLAY">
+                        <FontString name="RaidSummonPlus_SoulstoneHeader" inherits="RaidSummonPlus_GameFontHeader" text="Active Soulstones">
+                            <Anchors>
+                                <Anchor point="TOPLEFT">
+                                    <Offset>
+                                        <AbsDimension x="3" y="-2"/>
+                                    </Offset>
+                                </Anchor>
+                            </Anchors>
+                        </FontString>
+                        <FontString name="RaidSummonPlus_SoulstoneText" inherits="RaidSummonPlus_GameFontHeader" text="None">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_SoulstoneHeader" relativePoint="BOTTOMLEFT">
+                                    <Offset>
+                                        <AbsDimension x="5" y="-3"/>
+                                    </Offset>
+                                </Anchor>
+                            </Anchors>
+                        </FontString>
+                    </Layer>
+                </Layers>
+                <Frames>
+                    <!-- Soulstone list buttons (up to 5) -->
+					<Button name="RaidSummonPlus_Soulstone1" inherits="RaidSummonPlus_NameListButton" hidden="true">
+						<Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
+							<TileSize>
+								<AbsValue val="16"/>
+							</TileSize>
+						</Backdrop>
+						<Scripts>
+							<OnEnter>
+								RaidSummonPlus_NameListButton_OnEnter();
+							</OnEnter>
+							<OnLeave>
+								RaidSummonPlus_NameListButton_OnLeave();
+							</OnLeave>
+						</Scripts>
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_SoulstoneHeader" relativePoint="BOTTOMLEFT">
+								<Offset>
+									<AbsDimension x="7" y="-3"/>
+								</Offset>
+							</Anchor>
+						</Anchors>
+					</Button>
+                    <Button name="RaidSummonPlus_Soulstone2" inherits="RaidSummonPlus_NameListButton" hidden="true">
+                        <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
+                            <TileSize>
+                                <AbsValue val="16"/>
+                            </TileSize>
+                        </Backdrop>
+                        <Scripts>
+                            <OnEnter>
+                                RaidSummonPlus_NameListButton_OnEnter();
+                            </OnEnter>
+                            <OnLeave>
+                                RaidSummonPlus_NameListButton_OnLeave();
+                            </OnLeave>
+                        </Scripts>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_Soulstone1" relativePoint="BOTTOMLEFT">
+                                <Offset>
+                                    <AbsDimension x="0" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                    </Button>
+                    <Button name="RaidSummonPlus_Soulstone3" inherits="RaidSummonPlus_NameListButton" hidden="true">
+                        <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
+                            <TileSize>
+                                <AbsValue val="16"/>
+                            </TileSize>
+                        </Backdrop>
+                        <Scripts>
+                            <OnEnter>
+                                RaidSummonPlus_NameListButton_OnEnter();
+                            </OnEnter>
+                            <OnLeave>
+                                RaidSummonPlus_NameListButton_OnLeave();
+                            </OnLeave>
+                        </Scripts>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_Soulstone2" relativePoint="BOTTOMLEFT">
+                                <Offset>
+                                    <AbsDimension x="0" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                    </Button>
+                    <Button name="RaidSummonPlus_Soulstone4" inherits="RaidSummonPlus_NameListButton" hidden="true">
+                        <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
+                            <TileSize>
+                                <AbsValue val="16"/>
+                            </TileSize>
+                        </Backdrop>
+                        <Scripts>
+                            <OnEnter>
+                                RaidSummonPlus_NameListButton_OnEnter();
+                            </OnEnter>
+                            <OnLeave>
+                                RaidSummonPlus_NameListButton_OnLeave();
+                            </OnLeave>
+                        </Scripts>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_Soulstone3" relativePoint="BOTTOMLEFT">
+                                <Offset>
+                                    <AbsDimension x="0" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                    </Button>
+                    <Button name="RaidSummonPlus_Soulstone5" inherits="RaidSummonPlus_NameListButton" hidden="true">
+                        <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" tile="true">
+                            <TileSize>
+                                <AbsValue val="16"/>
+                            </TileSize>
+                        </Backdrop>
+                        <Scripts>
+                            <OnEnter>
+                                RaidSummonPlus_NameListButton_OnEnter();
+                            </OnEnter>
+                            <OnLeave>
+                                RaidSummonPlus_NameListButton_OnLeave();
+                            </OnLeave>
+                        </Scripts>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_Soulstone4" relativePoint="BOTTOMLEFT">
+                                <Offset>
+                                    <AbsDimension x="0" y="0"/>
+                                </Offset>
+                            </Anchor>
+                        </Anchors>
+                    </Button>
+                </Frames>
+            </Frame>
 		</Frames>
 		<Scripts>
 			<OnLoad>
