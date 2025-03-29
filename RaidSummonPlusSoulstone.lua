@@ -1254,6 +1254,51 @@ SOULSTONE_ATTEMPT_TARGET = nil
 SOULSTONE_ATTEMPT_TIME = 0
 local SOULSTONE_ATTEMPT_TIMEOUT = 1.0 -- Timeout after 1 second
 
+-- Function to check if any soulstone item is on cooldown
+function RaidSummonPlusSoulstone_IsAnySoulstoneOnCooldown()
+    -- Check in bags first
+    local hasSoulstone, bag, slot, stoneName = RaidSummonPlusSoulstone_HasStoneInInventory()
+    if hasSoulstone then
+        local start, duration, enable = GetContainerItemCooldown(bag, slot)
+        if start > 0 and duration > 0 then
+            return true
+        end
+    end
+    
+    -- Check for soulstone names in all bags
+    for _, spellData in ipairs(SOULSTONE_CREATION_SPELLS) do
+        for bag = 0, 4 do
+            for slot = 1, GetContainerNumSlots(bag) do
+                local link = GetContainerItemLink(bag, slot)
+                if link and string.find(link, spellData.itemName) then
+                    local start, duration, enable = GetContainerItemCooldown(bag, slot)
+                    if start > 0 and duration > 0 then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Check worn items too
+    for slot = 0, 19 do
+        local link = GetInventoryItemLink("player", slot)
+        if link then
+            for _, spellData in ipairs(SOULSTONE_CREATION_SPELLS) do
+                if string.find(link, spellData.itemName) then
+                    local start, duration, enable = GetInventoryItemCooldown("player", slot)
+                    if start > 0 and duration > 0 then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Main handler function for soulstone-related events
 function RaidSummonPlusSoulstone_HandleEvent(event, ...)
     -- Check if we need to clear a stale attempt
     if SOULSTONE_ATTEMPT_ACTIVE and GetTime() - SOULSTONE_ATTEMPT_TIME > SOULSTONE_ATTEMPT_TIMEOUT then
@@ -1389,14 +1434,19 @@ function RaidSummonPlusSoulstone_HandleEvent(event, ...)
         local message = arg1
         local currentTime = GetTime()
         
-        -- Check if this is a soulstone-related error
+        -- IMPROVED COOLDOWN DETECTION - better than previous solution
         local isSoulstoneError = false
-        if ((string.find(message, "[Ss]oulstone") or string.find(message, "Resurrection")) and 
-            (string.find(message, "not ready") or string.find(message, "cooldown"))) or
-           (string.find(message, "Item is not ready yet") or 
-            string.find(message, "isn't ready")) then
-            
+        
+        -- First check: Explicit mentions of soulstone in the error
+        if (string.find(message, "[Ss]oulstone") or string.find(message, "Resurrection")) and 
+           (string.find(message, "not ready") or string.find(message, "cooldown")) then
             isSoulstoneError = true
+        -- Second check: We were actively trying to use a soulstone
+        elseif SOULSTONE_ATTEMPT_ACTIVE and 
+              (string.find(message, "Item is not ready yet") or string.find(message, "isn't ready")) then
+            isSoulstoneError = true
+        -- REMOVED: Third check that caused false positives with Hearthstone and other items
+        -- This was checking ALL items with cooldowns, not just soulstones
         end
         
         -- Exit early if it's not a soulstone error
