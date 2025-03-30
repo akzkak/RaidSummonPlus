@@ -459,7 +459,7 @@ function RaidSummonPlusSoulstone_TrySoulstoneTarget(targetName)
     end
 end
 
--- Simple timer function to update soulstone display
+-- RaidSummonPlusSoulstone.lua
 function RaidSummonPlusSoulstone_StartTimer()
     SOULSTONE_TIMER_ACTIVE = true
     
@@ -475,7 +475,7 @@ function RaidSummonPlusSoulstone_StartTimer()
         -- Check for expired entries before updating display
         local needsUpdate = false
         
-        -- Check if any soulstone has expired but don't remove them, just mark them
+        -- Always check if any soulstone has expired, even if frame is hidden
         for i = 1, table.getn(SOULSTONE_DATA) do
             if SOULSTONE_DATA[i].status == SOULSTONE_STATUS.ACTIVE and SOULSTONE_DATA[i].expiry <= currentTime then
                 SOULSTONE_DATA[i].status = SOULSTONE_STATUS.EXPIRED
@@ -496,8 +496,12 @@ function RaidSummonPlusSoulstone_StartTimer()
             return
         end
         
-        -- Update the display only when needed (expired stones or timer interval reached)
-        RaidSummonPlusSoulstone_UpdateDisplay()
+        -- Only update the display when the frame is visible
+        if RaidSummonPlus_RequestFrame and RaidSummonPlus_RequestFrame:IsVisible() then
+            RaidSummonPlusSoulstone_UpdateDisplay()
+        end
+        
+        -- Always set the next update time, even if frame is hidden
         RaidSummonPlusSoulstone_TimerFrame.nextUpdate = currentTime + SOULSTONE_UPDATE_INTERVAL
     end)
     
