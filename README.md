@@ -19,9 +19,15 @@ A Warlock raid utility for WoW 1.12.1 that streamlines the summoning process wit
 
 ## Usage
 
+### Summon List
 1. **Left-click** a name to summon and remove from list
 2. **Ctrl+Left-click** to target a player without summoning
 3. **Right-click** to remove without summoning
+
+### Soulstone Tracking
+1. **Left-click** on an active soulstone entry to target that player
+2. **Left-click** on an expired soulstone to apply a new soulstone to that player
+3. **Right-click** to remove the entry from the list
 
 ## Commands
 
