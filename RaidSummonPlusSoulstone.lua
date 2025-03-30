@@ -505,18 +505,20 @@ function RaidSummonPlusSoulstone_StartTimer()
     RaidSummonPlusSoulstone_TimerFrame.nextUpdate = GetTime() + SOULSTONE_UPDATE_INTERVAL
 end
 
+-- Function to scan the raid for active soulstones
 function RaidSummonPlusSoulstone_ScanRaid(silent)
     -- Don't show the "Starting scan" message in silent mode
     if RaidSummonPlusOptions.debug and not silent then
         DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Scanning for active soulstones...")
     end
 
-    -- Create a map of existing entries to preserve status for players with expired soulstones
+    -- Create a map of existing entries to preserve expiry for players with active soulstones
     local existingMap = {}
     for i = 1, table.getn(SOULSTONE_DATA) do
         existingMap[SOULSTONE_DATA[i].name] = {
             isSelfCast = SOULSTONE_DATA[i].isSelfCast,
-            status = SOULSTONE_DATA[i].status
+            status = SOULSTONE_DATA[i].status,
+            expiry = SOULSTONE_DATA[i].expiry  -- Preserve the expiry time
         }
     end
     
@@ -563,6 +565,7 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
         local found = false
         for i = 1, table.getn(newData) do
             if newData[i].name == playerName then
+                -- For self, always update to precise time
                 newData[i].expiry = expiryTime
                 newData[i].isSelfCast = isSelfCast
                 newData[i].status = SOULSTONE_STATUS.ACTIVE
@@ -597,17 +600,32 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
                     -- The raid member has an active soulstone
                     activeCount = activeCount + 1
                     
-                    -- Preserve self-cast flag if existed before
+                    -- Check if we have an existing entry with status and expiry
+                    local oldExpiry = GetTime() + SOULSTONE_DURATION -- Default to a new 30min timer
                     local isSelfCast = false
+                    local wasActive = false
+                    
                     if existingMap[name] then
                         isSelfCast = existingMap[name].isSelfCast
+                        -- Only preserve expiry if this soulstone was already active
+                        if existingMap[name].status == SOULSTONE_STATUS.ACTIVE then
+                            oldExpiry = existingMap[name].expiry
+                            wasActive = true
+                        end
                     end
                     
                     -- Check if already in the newData
                     local found = false
                     for j = 1, table.getn(newData) do
                         if newData[j].name == name then
-                            newData[j].expiry = GetTime() + SOULSTONE_DURATION
+                            -- Only use preserved expiry if soulstone was continuously active
+                            if wasActive then
+                                newData[j].expiry = oldExpiry
+                            else
+                                -- Was expired before, now active - must be a new soulstone
+                                newData[j].expiry = GetTime() + SOULSTONE_DURATION
+                            end
+                            
                             newData[j].isSelfCast = isSelfCast
                             newData[j].status = SOULSTONE_STATUS.ACTIVE
                             found = true
@@ -617,6 +635,7 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
                     
                     -- Add new entry if not found
                     if not found then
+                        -- For new entries, always set fresh expiry
                         table.insert(newData, {
                             name = name,
                             expiry = GetTime() + SOULSTONE_DURATION,
@@ -642,17 +661,32 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
                     -- The party member has an active soulstone
                     activeCount = activeCount + 1
                     
-                    -- Preserve self-cast flag if existed before
+                    -- Check if we have an existing entry with status and expiry
+                    local oldExpiry = GetTime() + SOULSTONE_DURATION -- Default to a new 30min timer
                     local isSelfCast = false
+                    local wasActive = false
+                    
                     if existingMap[name] then
                         isSelfCast = existingMap[name].isSelfCast
+                        -- Only preserve expiry if this soulstone was already active
+                        if existingMap[name].status == SOULSTONE_STATUS.ACTIVE then
+                            oldExpiry = existingMap[name].expiry
+                            wasActive = true
+                        end
                     end
                     
                     -- Check if already in the newData
                     local found = false
                     for j = 1, table.getn(newData) do
                         if newData[j].name == name then
-                            newData[j].expiry = GetTime() + SOULSTONE_DURATION
+                            -- Only use preserved expiry if soulstone was continuously active
+                            if wasActive then
+                                newData[j].expiry = oldExpiry
+                            else
+                                -- Was expired before, now active - must be a new soulstone
+                                newData[j].expiry = GetTime() + SOULSTONE_DURATION
+                            end
+                            
                             newData[j].isSelfCast = isSelfCast
                             newData[j].status = SOULSTONE_STATUS.ACTIVE
                             found = true
@@ -662,6 +696,7 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
                     
                     -- Add new entry if not found
                     if not found then
+                        -- For new entries, always set fresh expiry
                         table.insert(newData, {
                             name = name,
                             expiry = GetTime() + SOULSTONE_DURATION,
@@ -959,8 +994,10 @@ function RaidSummonPlusSoulstone_UpdateDisplay()
         local name = entry.name
         local displayText = name
         
-        -- Only show timer for active self-cast soulstones
-        if entry.status == SOULSTONE_STATUS.ACTIVE and entry.isSelfCast then
+        -- Show timers for all active soulstones
+        -- For self-cast: Uses precise timer from API when available
+        -- For others: Uses simple 30-min countdown from application time
+        if entry.status == SOULSTONE_STATUS.ACTIVE then
             local remainingTime = entry.expiry - currentTime
             
             -- Format time as MM:SS using basic math
@@ -1016,19 +1053,14 @@ function RaidSummonPlusSoulstone_UpdateDisplay()
                 local c = RaidSummonPlus_GetClassColour(string.upper(playerClass))
                 textName:SetTextColor(c.r, c.g, c.b, 1)
             else
-                -- Time-based coloring for active self-cast soulstones without class info
-                if entry.isSelfCast then
-                    local remainingTime = entry.expiry - currentTime
-                    if remainingTime < 300 then -- Less than 5 minutes
-                        textName:SetTextColor(1, 0.5, 0) -- Orange
-                    elseif remainingTime < 600 then -- Less than 10 minutes
-                        textName:SetTextColor(1, 1, 0) -- Yellow
-                    else
-                        textName:SetTextColor(0, 1, 0) -- Green
-                    end
+                -- Time-based coloring for active soulstones without class info
+                local remainingTime = entry.expiry - currentTime
+                if remainingTime < 300 then -- Less than 5 minutes
+                    textName:SetTextColor(1, 0.5, 0) -- Orange
+                elseif remainingTime < 600 then -- Less than 10 minutes
+                    textName:SetTextColor(1, 1, 0) -- Yellow
                 else
-                    -- Default text color for non-self-cast soulstones without class info
-                    textName:SetTextColor(0.7, 0.7, 1) -- Light blue
+                    textName:SetTextColor(0, 1, 0) -- Green
                 end
             end
         end

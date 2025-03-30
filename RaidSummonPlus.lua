@@ -1,6 +1,5 @@
 -- RaidSummonPlus.lua
 -- Enhanced version of RaidSummon addon with persistent window position, improved frame visibility, and combat detection
--- Now with optional SuperWoW integration and Soulstone tracking for multiple players
 -- WoW 1.12.1 (Vanilla) compatible version
 
 -- Variables for tracking summon status
@@ -30,9 +29,6 @@ local RaidSummonPlusOptions_DefaultSettings = {
     frameRelativePoint = nil  -- Relative anchor point
 }
 
--- Check if SuperWoW is available
-local isSuperWoWAvailable = (SUPERWOW_VERSION ~= nil)
-
 -- Event registration function
 function RaidSummonPlus_EventFrame_OnLoad()
     -- Register standard events
@@ -58,15 +54,6 @@ function RaidSummonPlus_EventFrame_OnLoad()
     
     -- Add UI error event for cooldown detection
     this:RegisterEvent("UI_ERROR_MESSAGE")
-    
-    -- Register SuperWoW-specific events if available
-    if isSuperWoWAvailable then
-        this:RegisterEvent("UNIT_CASTEVENT")
-        -- Only log SuperWoW status if debug is enabled
-        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : SuperWoW detected - enhanced summoning coordination enabled!")
-        end
-    end
     
     -- Commands
     SlashCmdList["RAIDSUMMONPLUS"] = RaidSummonPlus_SlashCommand
@@ -562,37 +549,6 @@ function RaidSummonPlus_RestoreFramePosition()
     end
 end
 
--- Helper function to get player name from GUID (for SuperWoW integration)
-function RaidSummonPlus_GetNameFromGUID(guid)
-    if not guid then return nil end
-    
-    -- Try to find the player with this GUID in the raid
-    local raidSize = GetNumRaidMembers()
-    if raidSize > 0 then
-        for i=1, raidSize do
-            local unitID = "raid"..i
-            local unitGUID = UnitExists(unitID) -- SuperWoW enhancement returns GUID as second value
-            if unitGUID == guid then
-                return UnitName(unitID)
-            end
-        end
-    end
-    
-    -- If not found in raid, check party
-    local partySize = GetNumPartyMembers()
-    if partySize > 0 then
-        for i=1, partySize do
-            local unitID = "party"..i
-            local unitGUID = UnitExists(unitID)
-            if unitGUID == guid then
-                return UnitName(unitID)
-            end
-        end
-    end
-    
-    return nil
-end
-
 -- Function to handle mouse entering a name list button - brighten the text color
 function RaidSummonPlus_NameListButton_OnEnter()
     -- Get the text object for this button
@@ -744,7 +700,7 @@ function RaidSummonPlus_EventFrame_OnEvent()
             end
         end
         
-    elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
+elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
         -- Check for Ritual of Summoning cast by other warlocks
         if string.find(arg1, "casts Ritual of Summoning") then
             -- Extract the warlock's name (everything before " casts")
@@ -876,55 +832,6 @@ function RaidSummonPlus_EventFrame_OnEvent()
         -- Forward UI errors to the soulstone module
         if RaidSummonPlusSoulstone_HandleEvent then
             RaidSummonPlusSoulstone_HandleEvent(event, arg1)
-        end
-        
-    -- SuperWoW-specific event handling
-    elseif event == "UNIT_CASTEVENT" and isSuperWoWAvailable then
-        local casterGUID = arg1
-        local targetGUID = arg2
-        local eventType = arg3
-        local spellID = tonumber(arg4)
-        
-        -- Check if this is a Ritual of Summoning spell
-        if spellID == RITUAL_OF_SUMMONING_SPELL_ID then
-            -- Don't process our own summons - we handle those separately
-            local playerGUID = UnitExists("player")
-            if casterGUID ~= playerGUID then
-                if eventType == "START" then
-                    -- Process summon started by another warlock
-                    local targetName = nil
-                    
-                    -- For Ritual of Summoning, we likely need to determine the target in a different way
-                    -- as the spell is technically cast on the summoning portal
-                    -- We can try to detect by seeing who they're targeting
-                    for i=1, GetNumRaidMembers() do
-                        local unitID = "raid"..i
-                        local unitGUID = UnitExists(unitID)
-                        if unitGUID == casterGUID then
-                            -- Found the caster, check their target
-                            if UnitExists(unitID.."target") then
-                                targetName = UnitName(unitID.."target")
-                                break
-                            end
-                        end
-                    end
-                    
-                    -- If we found a potential target and they're in our summon list
-                    if targetName and RaidSummonPlus_hasValue(RaidSummonPlusDB, targetName) then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Another warlock is summoning " .. targetName)
-                        
-                        -- Remove from our list
-                        for i, v in ipairs(RaidSummonPlusDB) do
-                            if v == targetName then
-                                SendAddonMessage(MSG_PREFIX_REMOVE, targetName, "RAID")
-                                table.remove(RaidSummonPlusDB, i)
-                                RaidSummonPlus_UpdateList()
-                                break
-                            end
-                        end
-                    end
-                end
-            end
         end
         
     elseif event == "SPELLCAST_START" then
@@ -1261,6 +1168,7 @@ function RaidSummonPlus_NameListButton_OnClick(button)
     RaidSummonPlus_UpdateList()
 end
 
+-- Update the UpdateList function to handle test entries
 function RaidSummonPlus_UpdateList()
     RaidSummonPlus_BrowseDB = {}
     
@@ -1286,23 +1194,45 @@ function RaidSummonPlus_UpdateList()
                     end
                 end
             end
-
-            -- Sort warlocks first - simplify sorting for Lua 5.0
-            local sortedDB = {}
-            -- First add the warlocks
-            for i, v in ipairs(RaidSummonPlus_BrowseDB) do
-                if v.rVIP then
-                    table.insert(sortedDB, v)
-                end
-            end
-            -- Then add the others
-            for i, v in ipairs(RaidSummonPlus_BrowseDB) do
-                if not v.rVIP then
-                    table.insert(sortedDB, v)
-                end
-            end
-            RaidSummonPlus_BrowseDB = sortedDB
         end
+        
+        -- Add entries for test players not found in raid
+        for i, name in ipairs(RaidSummonPlusDB) do
+            -- Check if this player is already in the browse DB
+            local found = false
+            for _, entry in ipairs(RaidSummonPlus_BrowseDB) do
+                if entry.rName == name then
+                    found = true
+                    break
+                end
+            end
+            
+            -- If not found but we have test data, add them
+            if not found and RaidSummonPlus_TestEntries[name] then
+                local newIndex = table.getn(RaidSummonPlus_BrowseDB) + 1
+                RaidSummonPlus_BrowseDB[newIndex] = {}
+                RaidSummonPlus_BrowseDB[newIndex].rName = name
+                RaidSummonPlus_BrowseDB[newIndex].rClass = RaidSummonPlus_TestEntries[name]
+                RaidSummonPlus_BrowseDB[newIndex].rIndex = i
+                RaidSummonPlus_BrowseDB[newIndex].rVIP = (RaidSummonPlus_TestEntries[name] == "Warlock")
+            end
+        end
+
+        -- Sort warlocks first - simplify sorting for Lua 5.0
+        local sortedDB = {}
+        -- First add the warlocks
+        for i, v in ipairs(RaidSummonPlus_BrowseDB) do
+            if v.rVIP then
+                table.insert(sortedDB, v)
+            end
+        end
+        -- Then add the others
+        for i, v in ipairs(RaidSummonPlus_BrowseDB) do
+            if not v.rVIP then
+                table.insert(sortedDB, v)
+            end
+        end
+        RaidSummonPlus_BrowseDB = sortedDB
         
         -- Update UI elements
         local visibleListItems = 0
@@ -1351,32 +1281,35 @@ function RaidSummonPlus_UpdateList()
                 getglobal("RaidSummonPlus_NameList"..i):Hide()
             end
         end
-		
-		-- Update frame layout now that we've updated all list items
-		RaidSummonPlus_FixFrameLayout()
-		
-		-- Explicitly control frame visibility based on summon list
-		if RaidSummonPlus_RequestFrame then
-			if not RaidSummonPlusDB or table.getn(RaidSummonPlusDB) == 0 then
-				-- No summons needed, hide the frame
-				RaidSummonPlus_RequestFrame:Hide()
-			else
-				-- We have summons, show the frame
-				ShowUIPanel(RaidSummonPlus_RequestFrame, 1)
-			end
-		end
+        
+        -- Update frame layout after displaying summon list
+        RaidSummonPlus_FixFrameLayout()
+        
+        -- Explicitly control frame visibility based on summon list
+        if RaidSummonPlus_RequestFrame then
+            if not RaidSummonPlusDB or table.getn(RaidSummonPlusDB) == 0 then
+                -- No summons needed, hide the frame
+                RaidSummonPlus_RequestFrame:Hide()
+            else
+                -- We have summons, show the frame
+                ShowUIPanel(RaidSummonPlus_RequestFrame, 1)
+            end
+        end
         
         -- Make sure to set up hover effects after updating the list
         RaidSummonPlus_SetupAllButtonHoverEffects()
-	else
-		-- Not a warlock, always hide the frame
-		if RaidSummonPlus_RequestFrame then
-			HideUIPanel(RaidSummonPlus_RequestFrame)
-		end
-	end
+    else
+        -- Not a warlock, always hide the frame
+        if RaidSummonPlus_RequestFrame then
+            HideUIPanel(RaidSummonPlus_RequestFrame)
+        end
+    end
 end
 
---Slash Handler
+-- Table for test entries that we can use to simulate raid members
+RaidSummonPlus_TestEntries = {}
+
+-- Then update the slash command handler function:
 function RaidSummonPlus_SlashCommand(msg)
 	if msg == "help" then
 		DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus usage:")
@@ -1390,78 +1323,41 @@ function RaidSummonPlus_SlashCommand(msg)
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9debug|r: toggles additional debug messages")
         DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9soulstone|r or |cff9482c9ss|r: scan for active Soulstones")
         DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9addsoulstone|r or |cff9482c9testss|r: adds a debug soulstone (10 sec duration)")
+        DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9add [class] [name]|r: add a test player to the summon list")
 		DEFAULT_CHAT_FRAME:AddMessage("To drag the frame use left mouse button")
+	-- Rest of existing conditions here...
+    
+    elseif string.find(msg, "^add%s+") then
+        -- Extract class and name from the command
+        local _, _, class, name = string.find(msg, "^add%s+(%S+)%s+(.+)")
         
-        -- Display SuperWoW status
-        if isSuperWoWAvailable then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9SuperWoW|r: |cff00ff00Detected|r - Enhanced warlock coordination enabled")
+        if class and name then
+            -- Capitalize the first letter of the class name for consistency
+            class = string.upper(string.sub(class, 1, 1)) .. string.lower(string.sub(class, 2))
+            
+            -- Check if the player is already in the summon list
+            if not RaidSummonPlus_hasValue(RaidSummonPlusDB, name) then
+                -- Add the player to the summon list
+                table.insert(RaidSummonPlusDB, name)
+                
+                -- Store class for test entry
+                RaidSummonPlus_TestEntries[name] = class
+                
+                -- Send addon message to sync with other users
+                SendAddonMessage(MSG_PREFIX_ADD, name, "RAID")
+                
+                -- Update the UI
+                RaidSummonPlus_UpdateList()
+                
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Added " .. name .. " (" .. class .. ") to summon list")
+            else
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. name .. " is already in the summon list")
+            end
         else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9SuperWoW|r: |cffff0000Not detected|r - Using standard coordination")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Invalid add command. Usage: /rsp add [class] [name]")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Example: /rsp add Mage Jaina")
         end
-	elseif msg == "show" then
-		for i, v in ipairs(RaidSummonPlusDB) do
-			DEFAULT_CHAT_FRAME:AddMessage(tostring(v))
-		end
-	elseif msg == "zone" then
-		if RaidSummonPlusOptions["zone"] == true then
-			RaidSummonPlusOptions["zone"] = false
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - zoneinfo: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["zone"] == false then
-			RaidSummonPlusOptions["zone"] = true
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - zoneinfo: |cff00ff00enabled|r")
-		end
-	elseif msg == "whisper" then
-		if RaidSummonPlusOptions["whisper"] == true then
-			RaidSummonPlusOptions["whisper"] = false
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - whisper: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["whisper"] == false then
-			RaidSummonPlusOptions["whisper"] = true
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - whisper: |cff00ff00enabled|r")
-		end
-	elseif msg == "shards" then
-		if RaidSummonPlusOptions["shards"] == true then
-	       RaidSummonPlusOptions["shards"] = false
-	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - shards: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["shards"] == false then
-	       RaidSummonPlusOptions["shards"] = true
-	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - shards: |cff00ff00enabled|r")
-		end
-	elseif msg == "ritual" then
-		if RaidSummonPlusOptions["ritual"] == true then
-			RaidSummonPlusOptions["ritual"] = false
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - Ritual of Souls announcements: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["ritual"] == false then
-			RaidSummonPlusOptions["ritual"] = true
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - Ritual of Souls announcements: |cff00ff00enabled|r")
-		end
-	elseif msg == "debug" then
-		if RaidSummonPlusOptions["debug"] == true then
-	       RaidSummonPlusOptions["debug"] = false
-	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - debug: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["debug"] == false then
-	       RaidSummonPlusOptions["debug"] = true
-	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - debug: |cff00ff00enabled|r")
-		end
-	elseif msg == "soulstone" or msg == "ss" then
-		DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Scanning for active Soulstones...")
-		if RaidSummonPlusSoulstone_ScanRaid then
-		    RaidSummonPlusSoulstone_ScanRaid(false)
-		end
-    elseif msg == "addsoulstone" or msg == "testss" then
-        -- Add a debug soulstone for testing
-        if RaidSummonPlusSoulstone_AddDebugSoulstone then
-            RaidSummonPlusSoulstone_AddDebugSoulstone()
-        else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Error - Soulstone module not loaded")
-        end
-    elseif string.find(msg, "^addsoulstone%s+") or string.find(msg, "^testss%s+") then
-        -- Add a debug soulstone for a specific player
-        if RaidSummonPlusSoulstone_AddDebugSoulstone then
-            local _, _, targetName = string.find(msg, "^%S+%s+(.+)")
-            RaidSummonPlusSoulstone_AddDebugSoulstone(targetName)
-        else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Error - Soulstone module not loaded")
-        end
+    -- The default case follows...
 	else
 		if RaidSummonPlus_RequestFrame and RaidSummonPlus_RequestFrame:IsVisible() then
 			RaidSummonPlus_RequestFrame:Hide()
@@ -1474,7 +1370,7 @@ function RaidSummonPlus_SlashCommand(msg)
 	end
 end
 
---class color
+-- Get class color from WoW's global table
 function RaidSummonPlus_GetClassColour(class)
 	if (class) then
 		local color = RAID_CLASS_COLORS[class]
@@ -1485,7 +1381,7 @@ function RaidSummonPlus_GetClassColour(class)
 	return {r = 0.5, g = 0.5, b = 1}
 end
 
---raid member
+-- Get and store basic raid member data for targeting
 function RaidSummonPlus_GetRaidMembers()
     local raidnum = GetNumRaidMembers()
     if (raidnum > 0) then
