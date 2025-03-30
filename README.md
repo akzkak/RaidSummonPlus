@@ -18,7 +18,7 @@ A Warlock raid utility for WoW 1.12.1 that streamlines the summoning process wit
 2. **Enhanced Sync**: When multiple warlocks use RaidSummonPlus, their summon lists stay perfectly synchronized, providing seamless coordination.
 
 ## Usage
-
+ 
 ### Summon List
 1. **Left-click** a name to summon and remove from list
 2. **Ctrl+Left-click** to target a player without summoning
