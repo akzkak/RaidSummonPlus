@@ -1,8 +1,8 @@
 # RaidSummonPlus
 
-![RaidSummonPlus_screenshot](https://github.com/user-attachments/assets/2fb51929-e05b-44ac-9e40-ab2d49704c68)
+<img width="400" height="689" alt="WoW_01-08-25 (2)" src="https://github.com/user-attachments/assets/c0b5a1fd-f222-43a5-b796-ef1cef32ee74" />
+<img width="187" height="255" alt="WoW_01-08-25 (4)" src="https://github.com/user-attachments/assets/94322e1b-78b8-41b6-b2ae-cbbece9a5445" />
 
-<img width="411" height="728" alt="WoW_01-08-25" src="https://github.com/user-attachments/assets/193ab8b0-fe3d-4484-b1f0-4760f9df3582" />
 
 A Warlock raid utility for WoW 1.12.1 that streamlines the summoning process with auto-detection of combat, instance mismatches, and coordinated summon lists.
 
