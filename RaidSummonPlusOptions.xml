@@ -22,7 +22,7 @@
 	<!-- Main Options Frame -->
 	<Frame name="RaidSummonPlusOptionsFrame" frameStrata="DIALOG" toplevel="true" movable="true" enableMouse="true" hidden="true" parent="UIParent" clampedToScreen="true">
 		<Size>
-			<AbsDimension x="220" y="400"/>
+			<AbsDimension x="215" y="380"/>
 		</Size>
 		<Anchors>
 			<Anchor point="CENTER"/>
@@ -32,7 +32,7 @@
 			<!-- Title Frame -->
 			<Frame name="$parentTitleFrame" hidden="false">
 				<Size>
-					<AbsDimension x="220" y="18"/>
+					<AbsDimension x="215" y="18"/>
 				</Size>
 				<Layers>
 					<Layer level="OVERLAY">

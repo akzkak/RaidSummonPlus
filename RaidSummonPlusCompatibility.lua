@@ -3,7 +3,7 @@
 -- Handles communication with other summon addons
 -- WoW 1.12.1 (Vanilla) compatible version
 
--- Cross-addon compatibility setting (can be toggled via slash command)
+-- Cross-addon compatibility setting (always enabled)
 RaidSummonPlus_CrossAddonCompatibility = true
 
 -- Helper function to output messages only when debug is enabled

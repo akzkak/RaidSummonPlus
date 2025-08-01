@@ -1,6 +1,13 @@
 -- RaidSummonPlus Options Panel
 -- Compatible with WoW Vanilla 1.12.1
 
+-- Global variables for UI appearance customization
+-- To customize opacity: 0.0 = fully transparent, 1.0 = fully opaque
+-- Recommended values: 0.7-0.9 for good visibility with transparency
+RAIDSUMMONPLUS_OPTIONS_BACKGROUND_OPACITY = 0.70  -- Main frame background opacity
+RAIDSUMMONPLUS_OPTIONS_TITLE_OPACITY = 0.90       -- Title frame background opacity  
+RAIDSUMMONPLUS_OPTIONS_EDITBOX_OPACITY = 1.0      -- EditBox background opacity (keep at 1.0 for readability)
+
 -- Store checkbox references
 local optionCheckboxes = {}
 
@@ -45,7 +52,7 @@ local function createTextInput(parent, name, labelText, defaultText, yOffset, pr
         tileSize = 16,
         insets = { left = 4, right = 4, top = 2, bottom = 2 }
     })
-    editBox:SetBackdropColor(1, 1, 1, 1)  -- Use default DialogBox background color
+    editBox:SetBackdropColor(1, 1, 1, RAIDSUMMONPLUS_OPTIONS_EDITBOX_OPACITY)  -- Use configurable opacity
     
     -- Set up text properties
     editBox:SetFont("Fonts\\FRIZQT__.TTF", 10, "")
@@ -149,6 +156,14 @@ end
 
 -- Update the options display when shown
 function RaidSummonPlusOptions_OnShow()
+    -- Apply background opacity settings
+    if RaidSummonPlusOptionsFrame then
+        RaidSummonPlusOptionsFrame:SetBackdropColor(1, 1, 1, RAIDSUMMONPLUS_OPTIONS_BACKGROUND_OPACITY)
+    end
+    if RaidSummonPlusOptionsFrameTitleFrame then
+        RaidSummonPlusOptionsFrameTitleFrame:SetBackdropColor(1, 1, 1, RAIDSUMMONPLUS_OPTIONS_TITLE_OPACITY)
+    end
+    
     -- Create checkboxes if they don't exist yet (use a more reliable check)
     if not optionCheckboxes.announceSummon then
         -- Create checkboxes dynamically
@@ -179,7 +194,7 @@ function RaidSummonPlusOptions_OnShow()
             -- Section 3: Miscellaneous
             local HEADER3_Y = SECTION2_END - SECTION_TO_SECTION_SPACING
             local SECTION3_START = HEADER3_Y - HEADER_TO_OPTION_SPACING
-            local SECTION3_OPTIONS = 2 -- rangeCheck, compat (alphabetical)
+            local SECTION3_OPTIONS = 1 -- rangeCheck only
             
             -- Create or update headers dynamically (if they don't exist in XML)
             local function createOrUpdateHeader(name, text, yPos)
@@ -236,11 +251,6 @@ function RaidSummonPlusOptions_OnShow()
             if optionCheckboxes.rangeCheck then
                 optionCheckboxes.rangeCheck:SetScript("OnClick", RaidSummonPlusOptions_RangeCheckToggle)
             end
-            
-            optionCheckboxes.compat = createCheckboxOption(contentArea, "Compat", "Cross-addon compatibility", 0, optionCheckboxes.rangeCheck)
-            if optionCheckboxes.compat then
-                optionCheckboxes.compat:SetScript("OnClick", RaidSummonPlusOptions_CompatToggle)
-            end
         end
     end
     
@@ -269,9 +279,8 @@ function RaidSummonPlusOptions_OnShow()
         RaidSummonPlusOptions["ritualMessage"] = "{yell} {healValue} Cookies"  -- Set actual default
     end
 
-    if RaidSummonPlus_CrossAddonCompatibility == nil then
-        RaidSummonPlus_CrossAddonCompatibility = true
-    end
+    -- Cross-addon compatibility is always enabled
+    RaidSummonPlus_CrossAddonCompatibility = true
     if RaidSummonPlusOptions["rangeCheck"] == nil then
         RaidSummonPlusOptions["rangeCheck"] = false  -- Default to disabled
     end
@@ -315,9 +324,7 @@ function RaidSummonPlusOptions_OnShow()
         optionCheckboxes.ritualMessage:HighlightText(0, 0) -- Clear any selection
     end
 
-    if optionCheckboxes.compat then
-        optionCheckboxes.compat:SetChecked(RaidSummonPlus_CrossAddonCompatibility)
-    end
+
     if optionCheckboxes.rangeCheck then
         optionCheckboxes.rangeCheck:SetChecked(RaidSummonPlusOptions["rangeCheck"])
     end
@@ -404,11 +411,7 @@ end
 
 
 
-function RaidSummonPlusOptions_CompatToggle()
-    RaidSummonPlus_CrossAddonCompatibility = not RaidSummonPlus_CrossAddonCompatibility
-    local status = RaidSummonPlus_CrossAddonCompatibility and "|cff00ff00enabled|r" or "|cffff0000disabled|r"
-    RaidSummonPlusOptions_DebugMessage("cross-addon compatibility: " .. status)
-end
+
 
 function RaidSummonPlusOptions_RangeCheckToggle()
     RaidSummonPlusOptions["rangeCheck"] = not RaidSummonPlusOptions["rangeCheck"]

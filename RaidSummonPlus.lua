@@ -2,6 +2,13 @@
 -- Enhanced version of RaidSummon addon with persistent window position, improved frame visibility, and combat detection
 -- WoW 1.12.1 (Vanilla) compatible version
 
+-- Global variables for main frame UI appearance customization
+-- To customize opacity: 0.0 = fully transparent, 1.0 = fully opaque
+-- Recommended values: 0.7-0.9 for good visibility with transparency
+RAIDSUMMONPLUS_MAIN_BACKGROUND_OPACITY = 0.70     -- Main summon frame background opacity
+RAIDSUMMONPLUS_TITLE_BACKGROUND_OPACITY = 0.90    -- Title frame background opacity
+RAIDSUMMONPLUS_SOULSTONE_BACKGROUND_OPACITY = 0.70 -- Soulstone frame background opacity
+
 -- Variables for tracking summon status
 local SUMMON_PENDING = false
 local SUMMON_TARGET = nil
@@ -614,6 +621,29 @@ function RaidSummonPlus_RestoreFramePosition()
     end
 end
 
+-- Apply background opacity settings to main frames
+function RaidSummonPlus_ApplyFrameOpacity()
+    -- Apply opacity to main summon frame
+    if RaidSummonPlus_RequestFrame then
+        RaidSummonPlus_RequestFrame:SetBackdropColor(1, 1, 1, RAIDSUMMONPLUS_MAIN_BACKGROUND_OPACITY)
+    end
+    
+    -- Apply opacity to title frame
+    if RaidSummonPlus_TitleFrame then
+        RaidSummonPlus_TitleFrame:SetBackdropColor(1, 1, 1, RAIDSUMMONPLUS_TITLE_BACKGROUND_OPACITY)
+    end
+    
+    -- Apply opacity to soulstone frame
+    if RaidSummonPlus_SoulstoneFrame then
+        RaidSummonPlus_SoulstoneFrame:SetBackdropColor(1, 1, 1, RAIDSUMMONPLUS_SOULSTONE_BACKGROUND_OPACITY)
+    end
+    
+    -- Apply opacity to soulstone title frame if it exists
+    if RaidSummonPlus_SoulstoneTitleFrame then
+        RaidSummonPlus_SoulstoneTitleFrame:SetBackdropColor(1, 1, 1, RAIDSUMMONPLUS_TITLE_BACKGROUND_OPACITY)
+    end
+end
+
 -- Function to handle mouse entering a name list button - brighten the text color
 function RaidSummonPlus_NameListButton_OnEnter()
     local buttonName = this:GetName()
@@ -720,6 +750,9 @@ function RaidSummonPlus_EventFrame_OnEvent()
                     RaidSummonPlus_SoulstoneText:SetText("None")
                     RaidSummonPlus_SoulstoneHeader:SetText("Soulstones")
                     RaidSummonPlus_SoulstoneFrame:Show()
+                    
+                    -- Apply initial frame opacity settings
+                    RaidSummonPlus_ApplyFrameOpacity()
                     
                     -- Initialize soulstone module
                     if RaidSummonPlusSoulstone_Initialize then
@@ -1446,6 +1479,9 @@ function RaidSummonPlus_UpdateList()
 			else
 				-- We have summons, show the frame
 				ShowUIPanel(RaidSummonPlus_RequestFrame, 1)
+				
+				-- Apply background opacity settings when frame is shown
+				RaidSummonPlus_ApplyFrameOpacity()
 			end
 		end
         
@@ -1495,6 +1531,8 @@ function RaidSummonPlus_SlashCommand(msg)
 			RaidSummonPlus_UpdateList()
 			if RaidSummonPlus_RequestFrame then
 				ShowUIPanel(RaidSummonPlus_RequestFrame, 1)
+				-- Apply background opacity settings when frame is shown
+				RaidSummonPlus_ApplyFrameOpacity()
 			end
 		end
 	end
