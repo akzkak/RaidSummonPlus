@@ -10,6 +10,8 @@ SOULSTONE_STATUS = {
 }
 
 -- Variables for Soulstone tracking
+-- Note: In vanilla WoW, we can only detect buff presence, not remaining time on other players
+-- Therefore, we use static 30-minute timers for all soulstones
 SOULSTONE_BUFF_NAMES = {
     "Soulstone Resurrection",
     "Minor Soulstone Resurrection",
@@ -17,6 +19,13 @@ SOULSTONE_BUFF_NAMES = {
     "Greater Soulstone Resurrection",
     "Major Soulstone Resurrection"
 }
+
+-- Helper function to output messages only when debug is enabled
+function RaidSummonPlusSoulstone_DebugMessage(message)
+    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. message)
+    end
+end
 
 -- Comprehensive data structure for soulstone spells and their resulting items
 SOULSTONE_CREATION_SPELLS = {
@@ -40,6 +49,46 @@ SOULSTONE_DATA = {}
 SOULSTONE_UPDATE_INTERVAL = 1 -- Update timer every second
 SOULSTONE_TIMER_ACTIVE = false
 SOULSTONE_AUTOSCAN_INTERVAL = 30 -- Auto-scan interval for soulstones (in seconds)
+
+-- Table to track our own cast timers (like PallyPower's LastCast)
+-- Only timers we set ourselves will count down - detected buffs don't get timers
+SOULSTONE_CAST_TIMERS = {}
+
+-- Format time like PallyPower does
+function RaidSummonPlusSoulstone_FormatTime(time)
+    if not time or time < 0 then
+        return ""
+    end
+    local mins = math.floor(time / 60)
+    local secs = time - (mins * 60)
+    return string.format("%d:%02d", mins, secs)
+end
+
+-- Handle when a player is resurrected (soulstone used)
+function RaidSummonPlusSoulstone_OnPlayerAlive()
+    local playerName = UnitName("player")
+    
+    -- Check if the player had a soulstone and remove it
+    for i = 1, table.getn(SOULSTONE_DATA) do
+        if SOULSTONE_DATA[i].name == playerName then
+            -- Mark as expired since soulstone was used
+            SOULSTONE_DATA[i].status = SOULSTONE_STATUS.EXPIRED
+            
+            -- Remove from cast timers if it was self-cast
+            if SOULSTONE_DATA[i].isSelfCast then
+                SOULSTONE_CAST_TIMERS[playerName] = nil
+            end
+            
+            if RaidSummonPlusOptions.debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Soulstone used for resurrection: " .. playerName)
+            end
+            
+            -- Update display
+            RaidSummonPlusSoulstone_UpdateDisplay()
+            break
+        end
+    end
+end
 
 -- Initialize the Soulstone module
 function RaidSummonPlusSoulstone_Initialize()
@@ -90,41 +139,9 @@ function RaidSummonPlusSoulstone_CheckForBuff(unit)
     return nil
 end
 
--- Helper function to get the player buff ID from the buff index
-function RaidSummonPlusSoulstone_GetPlayerBuffId(buffIndex)
-    for i = 0, 31 do  -- Scan all possible buff IDs
-        local id = GetPlayerBuff(i, "HELPFUL")
-        if id == buffIndex then
-            return i
-        end
-    end
-    return nil
-end
+-- Removed GetPlayerBuffId function - no longer needed for static timers
 
--- Get the actual time left on a soulstone buff
-function RaidSummonPlusSoulstone_GetTimeLeft()
-    local buffIndex = RaidSummonPlusSoulstone_CheckForBuff("player")
-    if not buffIndex then
-        return nil
-    end
-    
-    -- Try to get the buff ID for the player's soulstone
-    for i = 0, 31 do
-        local id = GetPlayerBuff(i, "HELPFUL")
-        if id > -1 then
-            local texture = GetPlayerBuffTexture(id)
-            if texture == "Interface\\Icons\\Spell_Shadow_SoulGem" then
-                local timeLeft = GetPlayerBuffTimeLeft(id)
-                if RaidSummonPlusOptions.debug then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Soulstone has " .. timeLeft .. " seconds remaining")
-                end
-                return timeLeft
-            end
-        end
-    end
-    
-    return nil
-end
+-- Removed GetTimeLeft function - we use static 30-minute timers only
 
 -- Check if player has a soulstone item in inventory
 function RaidSummonPlusSoulstone_HasStoneInInventory()
@@ -294,7 +311,7 @@ function RaidSummonPlusSoulstone_TryCreateSoulstone()
     return false, "No Soulstone creation spell available"
 end
 
--- Simple implementation to apply soulstone tracking
+-- Apply soulstone tracking - ONLY sets timer when WE cast it (like PallyPower)
 function RaidSummonPlusSoulstone_Apply(target, caster)
     -- Validate target name
     if not target or target == "" or target == "unknown" then
@@ -318,26 +335,32 @@ function RaidSummonPlusSoulstone_Apply(target, caster)
     end
     
     local isSelfCast = (caster == UnitName("player"))
+    
+    -- CRITICAL: Only set timer if WE cast the soulstone (like PallyPower)
+    if isSelfCast then
+        -- Set our cast timer - this will count down
+        SOULSTONE_CAST_TIMERS[target] = SOULSTONE_DURATION
+        
+        if RaidSummonPlusOptions.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Started 30-minute timer for " .. target .. " (self-cast)")
+        end
+    end
+    
     local entry = {
         name = target,
-        expiry = GetTime() + SOULSTONE_DURATION,
+        expiry = isSelfCast and (GetTime() + SOULSTONE_DURATION) or nil,  -- Only set expiry for self-cast
         isSelfCast = isSelfCast,
         status = SOULSTONE_STATUS.ACTIVE
     }
-    
-    -- Try to get precise time for the player's own buff
-    if target == UnitName("player") and isSelfCast then
-        local timeLeft = RaidSummonPlusSoulstone_GetTimeLeft()
-        if timeLeft and timeLeft > 0 then
-            entry.expiry = GetTime() + timeLeft
-        end
-    end
     
     -- Add to our tracking data (replacing existing entry if present)
     local found = false
     for i = 1, table.getn(SOULSTONE_DATA) do
         if SOULSTONE_DATA[i].name == target then
-            SOULSTONE_DATA[i].expiry = entry.expiry
+            -- Only update expiry if this is a self-cast
+            if isSelfCast then
+                SOULSTONE_DATA[i].expiry = entry.expiry
+            end
             SOULSTONE_DATA[i].isSelfCast = entry.isSelfCast
             SOULSTONE_DATA[i].status = SOULSTONE_STATUS.ACTIVE
             found = true
@@ -350,7 +373,7 @@ function RaidSummonPlusSoulstone_Apply(target, caster)
     end
     
     -- Share with other warlocks - include self-cast flag
-    local message = target .. ":" .. entry.expiry .. ":" .. (isSelfCast and "1" or "0")
+    local message = target .. ":" .. (entry.expiry or 0) .. ":" .. (isSelfCast and "1" or "0")
     SendAddonMessage(MSG_PREFIX_SOULSTONE, message, "RAID")
     
     -- Start the timer if not already running
@@ -459,50 +482,72 @@ function RaidSummonPlusSoulstone_TrySoulstoneTarget(targetName)
     end
 end
 
--- RaidSummonPlusSoulstone.lua
+-- Timer function - decrements our cast timers like PallyPower
 function RaidSummonPlusSoulstone_StartTimer()
     SOULSTONE_TIMER_ACTIVE = true
     
     -- Create a timer frame if it doesn't exist
     if not RaidSummonPlusSoulstone_TimerFrame then
         RaidSummonPlusSoulstone_TimerFrame = CreateFrame("Frame")
+        RaidSummonPlusSoulstone_TimerFrame.lastUpdate = GetTime()
     end
     
     -- Set up the timer
     RaidSummonPlusSoulstone_TimerFrame:SetScript("OnUpdate", function()
         local currentTime = GetTime()
+        local elapsed = currentTime - (this.lastUpdate or currentTime)
+        this.lastUpdate = currentTime
         
-        -- Check for expired entries before updating display
+        -- Decrement our cast timers (like PallyPower's LastCast)
         local needsUpdate = false
-        
-        -- Always check if any soulstone has expired, even if frame is hidden
-        for i = 1, table.getn(SOULSTONE_DATA) do
-            if SOULSTONE_DATA[i].status == SOULSTONE_STATUS.ACTIVE and SOULSTONE_DATA[i].expiry <= currentTime then
-                SOULSTONE_DATA[i].status = SOULSTONE_STATUS.EXPIRED
+        for target, timeLeft in SOULSTONE_CAST_TIMERS do
+            local newTime = timeLeft - elapsed
+            if newTime <= 0 then
+                -- Timer expired
+                SOULSTONE_CAST_TIMERS[target] = nil
                 needsUpdate = true
+                
+                -- Mark corresponding entry as expired
+                for i = 1, table.getn(SOULSTONE_DATA) do
+                    if SOULSTONE_DATA[i].name == target and SOULSTONE_DATA[i].isSelfCast then
+                        SOULSTONE_DATA[i].status = SOULSTONE_STATUS.EXPIRED
+                        
+                        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Self-cast soulstone timer expired for " .. target)
+                        end
+                        break
+                    end
+                end
+            else
+                -- Update timer
+                SOULSTONE_CAST_TIMERS[target] = newTime
             end
         end
         
-        -- Skip updates if no soulstones have expired and we haven't reached the update interval
-        if not needsUpdate and currentTime < RaidSummonPlusSoulstone_TimerFrame.nextUpdate then
+        -- Skip updates if no timers changed and we haven't reached the update interval
+        if not needsUpdate and currentTime < (this.nextUpdate or 0) then
             return
         end
         
         -- Check if we have any soulstones to track
-        if table.getn(SOULSTONE_DATA) == 0 then
-            -- No active soulstones, stop the timer
-            RaidSummonPlusSoulstone_TimerFrame:SetScript("OnUpdate", nil)
+        if table.getn(SOULSTONE_DATA) == 0 and not next(SOULSTONE_CAST_TIMERS) then
+            -- No active soulstones or timers, stop the timer
+            this:SetScript("OnUpdate", nil)
             SOULSTONE_TIMER_ACTIVE = false
             return
         end
         
-        -- Only update the display when the frame is visible
-        if RaidSummonPlus_RequestFrame and RaidSummonPlus_RequestFrame:IsVisible() then
+        -- Always update the display when timers change (for visibility logic)
+        -- But only update visual elements if frame is visible
+        if needsUpdate then
+            RaidSummonPlusSoulstone_UpdateDisplay()
+        elseif RaidSummonPlus_RequestFrame and RaidSummonPlus_RequestFrame:IsVisible() then
+            -- Regular timer updates only when frame is visible
             RaidSummonPlusSoulstone_UpdateDisplay()
         end
         
         -- Always set the next update time, even if frame is hidden
-        RaidSummonPlusSoulstone_TimerFrame.nextUpdate = currentTime + SOULSTONE_UPDATE_INTERVAL
+        this.nextUpdate = currentTime + SOULSTONE_UPDATE_INTERVAL
     end)
     
     -- Set the next update time
@@ -510,83 +555,24 @@ function RaidSummonPlusSoulstone_StartTimer()
 end
 
 -- Function to scan the raid for active soulstones
+-- NEVER sets timers - only detects buff presence (like PallyPower detection)
 function RaidSummonPlusSoulstone_ScanRaid(silent)
     -- Don't show the "Starting scan" message in silent mode
     if RaidSummonPlusOptions.debug and not silent then
         DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Scanning for active soulstones...")
     end
 
-    -- Create a map of existing entries to preserve expiry for players with active soulstones
-    local existingMap = {}
-    for i = 1, table.getn(SOULSTONE_DATA) do
-        existingMap[SOULSTONE_DATA[i].name] = {
-            isSelfCast = SOULSTONE_DATA[i].isSelfCast,
-            status = SOULSTONE_DATA[i].status,
-            expiry = SOULSTONE_DATA[i].expiry  -- Preserve the expiry time
-        }
-    end
-    
     -- Save previous count for debug summary
     local previousCount = table.getn(SOULSTONE_DATA)
-    local activeCount = 0
     
-    -- Create new array for updated data
-    local newData = {}
+    -- Create a list of players who currently have soulstone buffs
+    local playersWithBuffs = {}
     
-    -- First mark all existing entries as expired
-    for i = 1, table.getn(SOULSTONE_DATA) do
-        local entry = SOULSTONE_DATA[i]
-        -- Only keep players who are still in group
-        if RaidSummonPlus_IsPlayerInGroup(entry.name) then
-            -- Keep existing entries but mark as expired
-            table.insert(newData, {
-                name = entry.name,
-                expiry = entry.expiry,
-                isSelfCast = entry.isSelfCast,
-                status = SOULSTONE_STATUS.EXPIRED
-            })
-        end
-    end
-    
-    -- Check self first - we can get accurate time for our own buff
+    -- Check self first
     local playerName = UnitName("player")
     local playerBuffIndex = RaidSummonPlusSoulstone_CheckForBuff("player")
     if playerBuffIndex then
-        -- The player has an active soulstone
-        activeCount = activeCount + 1
-        
-        local expiryTime = GetTime() + SOULSTONE_DURATION
-        -- Always consider player's own soulstone as self-cast
-        local isSelfCast = true
-        
-        -- Try to get precise time left
-        local timeLeft = RaidSummonPlusSoulstone_GetTimeLeft()
-        if timeLeft then
-            expiryTime = GetTime() + timeLeft
-        end
-        
-        -- Update status for active soulstone
-        local found = false
-        for i = 1, table.getn(newData) do
-            if newData[i].name == playerName then
-                -- For self, always update to precise time
-                newData[i].expiry = expiryTime
-                newData[i].isSelfCast = isSelfCast
-                newData[i].status = SOULSTONE_STATUS.ACTIVE
-                found = true
-                break
-            end
-        end
-        
-        -- Add new entry if not found
-        if not found then
-            table.insert(newData, {
-                name = playerName,
-                expiry = expiryTime,
-                isSelfCast = isSelfCast,
-                status = SOULSTONE_STATUS.ACTIVE
-            })
-        end
+        playersWithBuffs[playerName] = true
     end
 
     -- Check if in raid
@@ -601,52 +587,7 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
             if name and name ~= playerName then
                 local buffIndex = RaidSummonPlusSoulstone_CheckForBuff(unit)
                 if buffIndex then
-                    -- The raid member has an active soulstone
-                    activeCount = activeCount + 1
-                    
-                    -- Check if we have an existing entry with status and expiry
-                    local oldExpiry = GetTime() + SOULSTONE_DURATION -- Default to a new 30min timer
-                    local isSelfCast = false
-                    local wasActive = false
-                    
-                    if existingMap[name] then
-                        isSelfCast = existingMap[name].isSelfCast
-                        -- Only preserve expiry if this soulstone was already active
-                        if existingMap[name].status == SOULSTONE_STATUS.ACTIVE then
-                            oldExpiry = existingMap[name].expiry
-                            wasActive = true
-                        end
-                    end
-                    
-                    -- Check if already in the newData
-                    local found = false
-                    for j = 1, table.getn(newData) do
-                        if newData[j].name == name then
-                            -- Only use preserved expiry if soulstone was continuously active
-                            if wasActive then
-                                newData[j].expiry = oldExpiry
-                            else
-                                -- Was expired before, now active - must be a new soulstone
-                                newData[j].expiry = GetTime() + SOULSTONE_DURATION
-                            end
-                            
-                            newData[j].isSelfCast = isSelfCast
-                            newData[j].status = SOULSTONE_STATUS.ACTIVE
-                            found = true
-                            break
-                        end
-                    end
-                    
-                    -- Add new entry if not found
-                    if not found then
-                        -- For new entries, always set fresh expiry
-                        table.insert(newData, {
-                            name = name,
-                            expiry = GetTime() + SOULSTONE_DURATION,
-                            isSelfCast = isSelfCast,
-                            status = SOULSTONE_STATUS.ACTIVE
-                        })
-                    end
+                    playersWithBuffs[name] = true
                 end
             end
         end
@@ -662,74 +603,80 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
             if name and name ~= playerName then
                 local buffIndex = RaidSummonPlusSoulstone_CheckForBuff(unit)
                 if buffIndex then
-                    -- The party member has an active soulstone
-                    activeCount = activeCount + 1
-                    
-                    -- Check if we have an existing entry with status and expiry
-                    local oldExpiry = GetTime() + SOULSTONE_DURATION -- Default to a new 30min timer
-                    local isSelfCast = false
-                    local wasActive = false
-                    
-                    if existingMap[name] then
-                        isSelfCast = existingMap[name].isSelfCast
-                        -- Only preserve expiry if this soulstone was already active
-                        if existingMap[name].status == SOULSTONE_STATUS.ACTIVE then
-                            oldExpiry = existingMap[name].expiry
-                            wasActive = true
-                        end
-                    end
-                    
-                    -- Check if already in the newData
-                    local found = false
-                    for j = 1, table.getn(newData) do
-                        if newData[j].name == name then
-                            -- Only use preserved expiry if soulstone was continuously active
-                            if wasActive then
-                                newData[j].expiry = oldExpiry
-                            else
-                                -- Was expired before, now active - must be a new soulstone
-                                newData[j].expiry = GetTime() + SOULSTONE_DURATION
-                            end
-                            
-                            newData[j].isSelfCast = isSelfCast
-                            newData[j].status = SOULSTONE_STATUS.ACTIVE
-                            found = true
-                            break
-                        end
-                    end
-                    
-                    -- Add new entry if not found
-                    if not found then
-                        -- For new entries, always set fresh expiry
-                        table.insert(newData, {
-                            name = name,
-                            expiry = GetTime() + SOULSTONE_DURATION,
-                            isSelfCast = isSelfCast,
-                            status = SOULSTONE_STATUS.ACTIVE
-                        })
-                    end
+                    playersWithBuffs[name] = true
                 end
             end
         end
     end
     
-    -- Replace the old array with our new data
-    SOULSTONE_DATA = newData
+    -- Update existing entries based on buff detection
+    -- Remove players who are no longer in group
+    for i = table.getn(SOULSTONE_DATA), 1, -1 do
+        local entry = SOULSTONE_DATA[i]
+        
+        if not RaidSummonPlus_IsPlayerInGroup(entry.name) then
+            -- Remove players who are no longer in group
+            table.remove(SOULSTONE_DATA, i)
+            -- Also remove their timer if we have one
+            SOULSTONE_CAST_TIMERS[entry.name] = nil
+        elseif playersWithBuffs[entry.name] then
+            -- Player still has buff - mark as active
+            entry.status = SOULSTONE_STATUS.ACTIVE
+        else
+            -- Player no longer has buff
+            if entry.isSelfCast and SOULSTONE_CAST_TIMERS[entry.name] then
+                -- For self-cast soulstones, only mark expired if our timer says so
+                -- (buff might have been used for resurrection)
+                if SOULSTONE_CAST_TIMERS[entry.name] <= 0 then
+                    entry.status = SOULSTONE_STATUS.EXPIRED
+                end
+            else
+                -- For non-self-cast or no timer, mark as expired if no buff
+                entry.status = SOULSTONE_STATUS.EXPIRED
+            end
+        end
+    end
+    
+    -- Add new entries for players with buffs who aren't tracked yet
+    -- CRITICAL: Never set timers here - only add entries without expiry times
+    for playerName, _ in playersWithBuffs do
+        local found = false
+        for i = 1, table.getn(SOULSTONE_DATA) do
+            if SOULSTONE_DATA[i].name == playerName then
+                found = true
+                break
+            end
+        end
+        
+        if not found then
+            -- Add new entry WITHOUT timer - detection doesn't set timers
+            table.insert(SOULSTONE_DATA, {
+                name = playerName,
+                expiry = nil,  -- No expiry time for detected buffs
+                isSelfCast = false,  -- Assume not self-cast for detected buffs
+                status = SOULSTONE_STATUS.ACTIVE
+            })
+            
+            if RaidSummonPlusOptions.debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Detected new soulstone on " .. playerName .. " (no timer)")
+            end
+        end
+    end
     
     -- Update display
     RaidSummonPlusSoulstone_UpdateDisplay()
     
-    -- Start timer if we have any soulstones
-    if table.getn(SOULSTONE_DATA) > 0 and not SOULSTONE_TIMER_ACTIVE then
+    -- Start timer if we have any soulstones or cast timers
+    if (table.getn(SOULSTONE_DATA) > 0 or next(SOULSTONE_CAST_TIMERS)) and not SOULSTONE_TIMER_ACTIVE then
         RaidSummonPlusSoulstone_StartTimer()
     end
     
     -- Print a single summary message of what was found
     local currentCount = table.getn(SOULSTONE_DATA)
-    if RaidSummonPlusOptions.debug then
+    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
         if not silent or (previousCount ~= currentCount) then
             if currentCount == 0 then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : No soulstones found in group")
+                RaidSummonPlusSoulstone_DebugMessage("No soulstones found in group")
             else
                 local activeNames = {}
                 local expiredNames = {}
@@ -743,12 +690,12 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
                 end
                 
                 if table.getn(activeNames) > 0 then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Found " .. table.getn(activeNames) .. 
+                    RaidSummonPlusSoulstone_DebugMessage("Found " .. table.getn(activeNames) .. 
                         " active soulstone(s): " .. table.concat(activeNames, ", "))
                 end
                 
                 if table.getn(expiredNames) > 0 then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Found " .. table.getn(expiredNames) .. 
+                    RaidSummonPlusSoulstone_DebugMessage("Found " .. table.getn(expiredNames) .. 
                         " expired soulstone(s): " .. table.concat(expiredNames, ", "))
                 end
             end
@@ -756,65 +703,7 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
     end
 end
 
--- Add a debug soulstone entry with short duration for testing
-function RaidSummonPlusSoulstone_AddDebugSoulstone(targetName)
-    -- If no target name provided, use the player or a random raid member
-    if not targetName or targetName == "" then
-        targetName = UnitName("player")
-        
-        -- Try to find a raid/party member if debugging with others
-        if UnitInRaid("player") and GetNumRaidMembers() > 1 then
-            local randomIndex = math.random(1, GetNumRaidMembers())
-            local randomName = GetRaidRosterInfo(randomIndex)
-            if randomName and randomName ~= UnitName("player") then
-                targetName = randomName
-            end
-        elseif GetNumPartyMembers() > 0 then
-            local randomIndex = math.random(1, GetNumPartyMembers())
-            local partyUnit = "party" .. randomIndex
-            local randomName = UnitName(partyUnit)
-            if randomName then
-                targetName = randomName
-            end
-        end
-    end
-    
-    -- Create a debug soulstone that will expire in 10 seconds
-    local entry = {
-        name = targetName,
-        expiry = GetTime() + 10, -- 10 seconds for testing
-        isSelfCast = (targetName == UnitName("player")),
-        status = SOULSTONE_STATUS.ACTIVE
-    }
-    
-    -- Add to our tracking data (replacing existing entry if present)
-    local found = false
-    for i = 1, table.getn(SOULSTONE_DATA) do
-        if SOULSTONE_DATA[i].name == targetName then
-            SOULSTONE_DATA[i].expiry = entry.expiry
-            SOULSTONE_DATA[i].isSelfCast = entry.isSelfCast
-            SOULSTONE_DATA[i].status = SOULSTONE_STATUS.ACTIVE
-            found = true
-            break
-        end
-    end
-    
-    if not found then
-        table.insert(SOULSTONE_DATA, entry)
-    end
-    
-    -- Start the timer if not already running
-    if not SOULSTONE_TIMER_ACTIVE then
-        RaidSummonPlusSoulstone_StartTimer()
-    end
-    
-    -- Update display
-    RaidSummonPlusSoulstone_UpdateDisplay()
-    
-    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Added debug soulstone on " .. targetName .. " (expires in 10 seconds)")
-    
-    return targetName
-end
+
 
 -- Initialize auto-scanning timer for soulstones
 function RaidSummonPlusSoulstone_InitAutoScan()
@@ -914,6 +803,7 @@ end
 
 -- Variable to track previous frame state to avoid repeated messages
 local FRAME_VISIBILITY_STATE = nil
+local RaidSummonPlusSoulstone_LastLoggedState = nil
 
 -- Function to update the soulstone display with styled buttons
 function RaidSummonPlusSoulstone_UpdateDisplay()
@@ -998,23 +888,16 @@ function RaidSummonPlusSoulstone_UpdateDisplay()
         local name = entry.name
         local displayText = name
         
-        -- Show timers for all active soulstones
-        -- For self-cast: Uses precise timer from API when available
-        -- For others: Uses simple 30-min countdown from application time
+        -- Show countdown timer ONLY for self-cast soulstones (like PallyPower)
         if entry.status == SOULSTONE_STATUS.ACTIVE then
-            local remainingTime = entry.expiry - currentTime
-            
-            -- Format time as MM:SS using basic math
-            local minutes = math.floor(remainingTime / 60)
-            local seconds = math.floor(remainingTime) - (minutes * 60)
-            local timeString = minutes .. ":"
-            if seconds < 10 then
-                timeString = timeString .. "0" .. seconds
+            if entry.isSelfCast and SOULSTONE_CAST_TIMERS[name] then
+                -- Show timer for self-cast soulstones
+                local timeString = RaidSummonPlusSoulstone_FormatTime(SOULSTONE_CAST_TIMERS[name])
+                displayText = name .. " (" .. timeString .. ")"
             else
-                timeString = timeString .. seconds
+                -- No timer for detected buffs - just show name (color indicates status)
+                displayText = name
             end
-            
-            displayText = name .. " (" .. timeString .. ")"
         end
         
         -- Get the player's class if in raid/party
@@ -1048,24 +931,17 @@ function RaidSummonPlusSoulstone_UpdateDisplay()
         if textName then
             textName:SetText(displayText)
             
-            -- Color handling depends on status
+            -- Clean color scheme: Class color for active, Red for expired
             if entry.status == SOULSTONE_STATUS.EXPIRED then
                 -- Red for expired soulstones
                 textName:SetTextColor(1, 0, 0, 1)
             elseif playerClass then
-                -- Class color for active soulstones
+                -- Class color for ALL active soulstones (with or without countdown)
                 local c = RaidSummonPlus_GetClassColour(string.upper(playerClass))
                 textName:SetTextColor(c.r, c.g, c.b, 1)
             else
-                -- Time-based coloring for active soulstones without class info
-                local remainingTime = entry.expiry - currentTime
-                if remainingTime < 300 then -- Less than 5 minutes
-                    textName:SetTextColor(1, 0.5, 0) -- Orange
-                elseif remainingTime < 600 then -- Less than 10 minutes
-                    textName:SetTextColor(1, 1, 0) -- Yellow
-                else
-                    textName:SetTextColor(0, 1, 0) -- Green
-                end
+                -- Fallback: White for active soulstones without class info
+                textName:SetTextColor(1, 1, 1, 1) -- White
             end
         end
         
@@ -1084,9 +960,9 @@ function RaidSummonPlusSoulstone_UpdateDisplay()
                     end
                     local success, message = RaidSummonPlusSoulstone_TrySoulstoneTarget(playerName)
                     
-                    -- Only display the message if it's not nil
+                    -- Only display the message if it's not nil and debug is enabled
                     if message then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. message)
+                        RaidSummonPlusSoulstone_DebugMessage(message)
                     end
                 else
                     -- For active soulstones, just target the player
@@ -1174,17 +1050,31 @@ function RaidSummonPlusSoulstone_UpdateDisplay()
     -- Only when summon list is empty
     if RaidSummonPlusDB and table.getn(RaidSummonPlusDB) == 0 then
         if RaidSummonPlus_RequestFrame then
-            -- Count active soulstones
+            -- Count active and expired soulstones
             local activeCount = 0
+            local expiredCount = 0
             for i = 1, table.getn(SOULSTONE_DATA) do
                 if SOULSTONE_DATA[i].status == SOULSTONE_STATUS.ACTIVE then
                     activeCount = activeCount + 1
+                else
+                    expiredCount = expiredCount + 1
                 end
             end
             
-            -- Determine current visibility state
-            local shouldShowFrame = (activeCount == 0 and table.getn(SOULSTONE_DATA) > 0)
-            local shouldHideFrame = (table.getn(SOULSTONE_DATA) == 0)
+            -- Frame should only show when NO active soulstones remain (but expired ones exist)
+            local shouldShowFrame = (activeCount == 0 and expiredCount > 0)
+            local shouldHideFrame = (activeCount == 0 and expiredCount == 0)
+            
+            -- Debug logging for visibility decisions
+            if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+                if activeCount > 0 then
+                    -- Don't spam when soulstones are active, but log state occasionally
+                    if not RaidSummonPlusSoulstone_LastLoggedState or RaidSummonPlusSoulstone_LastLoggedState ~= "ACTIVE_STONES" then
+                        RaidSummonPlusSoulstone_DebugMessage("Frame hidden - " .. activeCount .. " active soulstone(s) remain")
+                        RaidSummonPlusSoulstone_LastLoggedState = "ACTIVE_STONES"
+                    end
+                end
+            end
             
             -- Track state changes to avoid redundant messages
             if shouldShowFrame then
@@ -1192,10 +1082,11 @@ function RaidSummonPlusSoulstone_UpdateDisplay()
                 if FRAME_VISIBILITY_STATE ~= "SHOWN" then
                     ShowUIPanel(RaidSummonPlus_RequestFrame, 1)
                     FRAME_VISIBILITY_STATE = "SHOWN"
+                    RaidSummonPlusSoulstone_LastLoggedState = "SHOWN"
                     
                     -- Only print debug message when state changes
                     if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Showing frame - no active soulstones in raid")
+                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Showing frame - ALL soulstones expired (" .. activeCount .. " active, " .. expiredCount .. " expired)")
                     end
                 end
             elseif shouldHideFrame then
@@ -1203,10 +1094,11 @@ function RaidSummonPlusSoulstone_UpdateDisplay()
                 if FRAME_VISIBILITY_STATE ~= "HIDDEN" then
                     RaidSummonPlus_RequestFrame:Hide()
                     FRAME_VISIBILITY_STATE = "HIDDEN"
+                    RaidSummonPlusSoulstone_LastLoggedState = "HIDDEN"
                     
                     -- Only print debug message when state changes
                     if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Hiding frame - no soulstones or summons")
+                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Hiding frame - no soulstones or summons (" .. activeCount .. " active, " .. expiredCount .. " expired)")
                     end
                 end
             end

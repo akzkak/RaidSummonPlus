@@ -123,6 +123,11 @@ function RaidSummonPlusRitualofSouls_HandleSpellCast(spellName)
         return false
     end
     
+    -- Debug output only for relevant spells (Ritual of Souls)
+    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Ritual of Souls spell cast detected: " .. (spellName or "nil"))
+    end
+    
     -- If debug is enabled, scan all talents to help locate Master Conjuror
     if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
         RaidSummonPlusRitualofSouls_DebugTalents()
@@ -132,19 +137,100 @@ function RaidSummonPlusRitualofSouls_HandleSpellCast(spellName)
     local talentRank = RaidSummonPlusRitualofSouls_GetCachedMasterConjurorRank()
     local healValue = RaidSummonPlusRitualofSouls_GetHealthstoneHealValue(talentRank)
     
+    -- Determine default channel
+    local defaultChannel, channelName
+    if UnitInRaid("player") then
+        defaultChannel = "RAID"
+        channelName = "raid"
+    elseif GetNumPartyMembers() > 0 then
+        defaultChannel = "PARTY" 
+        channelName = "party"
+    else
+        defaultChannel = "SAY"
+        channelName = "say"
+    end
+    
     -- Create announcement message
-    local message = "Casting Ritual of Souls - Healthstones will heal for " .. healValue .. " HP"
-    if talentRank > 0 then
-        message = message .. " (Master Conjuror Rank " .. talentRank .. ")"
+    local message, customChannel
+    -- Always use the stored message (should never be nil/empty with proper defaults)
+    if RaidSummonPlusOptions and RaidSummonPlusOptions["ritualMessage"] and RaidSummonPlusOptions["ritualMessage"] ~= "" then
+        -- Use stored message, replace placeholders
+        message = RaidSummonPlusOptions["ritualMessage"]
+        message = string.gsub(message, "{healValue}", healValue)
+        message = string.gsub(message, "{talentRank}", talentRank)
+        if talentRank > 0 then
+            message = string.gsub(message, "{masterConjuror}", "(Master Conjuror Rank " .. talentRank .. ")")
+        else
+            message = string.gsub(message, "{masterConjuror}", "")
+        end
+        
+        -- Handle specific channel placeholders with smart fallback
+        if string.find(message, "{raid}") then
+            -- Smart channel selection: use RAID if in raid, PARTY if in party
+            if UnitInRaid("player") then
+                customChannel = "RAID"
+            elseif GetNumPartyMembers() > 0 then
+                customChannel = "PARTY"
+            else
+                customChannel = "SAY"  -- Solo fallback
+            end
+            message = string.gsub(message, "{raid}", "")
+        elseif string.find(message, "{party}") then
+            customChannel = "PARTY"
+            message = string.gsub(message, "{party}", "")
+        elseif string.find(message, "{guild}") then
+            customChannel = "GUILD"
+            message = string.gsub(message, "{guild}", "")
+        elseif string.find(message, "{say}") then
+            customChannel = "SAY"
+            message = string.gsub(message, "{say}", "")
+        elseif string.find(message, "{yell}") then
+            customChannel = "YELL"
+            message = string.gsub(message, "{yell}", "")
+        end
+        
+        -- Clean up any extra spaces at the beginning
+        message = string.gsub(message, "^%s+", "")
+    else
+        -- Fallback for users who somehow have empty/nil message (shouldn't happen with proper defaults)
+        message = "Cookie " .. healValue
+        customChannel = "SAY"
     end
     
     -- Send to appropriate chat
-    if UnitInRaid("player") then
-        SendChatMessage(message, "RAID")
-    elseif GetNumPartyMembers() > 0 then
-        SendChatMessage(message, "PARTY")
+    local finalChannel = customChannel or defaultChannel
+    
+    -- Debug output if enabled
+    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Custom Channel: " .. (customChannel or "nil"))
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Default Channel: " .. defaultChannel)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Final Channel: " .. finalChannel)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Message: " .. message)
+    end
+    
+    if finalChannel == "SAY" and customChannel then
+        -- User explicitly chose SAY channel
+        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Sending to SAY chat")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Message length: " .. string.len(message))
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : About to call SendChatMessage")
+        end
+        SendChatMessage(message, "SAY")
+        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : SendChatMessage call completed")
+        end
+    elseif finalChannel == "SAY" and not customChannel then
+        -- Solo player, just display in chat frame
+        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Displaying in chat frame (solo)")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. message)
+        end
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. message)
+        -- All other channels
+        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Sending to " .. finalChannel .. " chat")
+        end
+        SendChatMessage(message, finalChannel)
     end
     
     return true

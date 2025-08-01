@@ -5,5 +5,8 @@
 ## Interface: 11200
 ## SavedVariables: RaidSummonPlusOptions
 RaidSummonPlus.xml
+RaidSummonPlusOptions.xml
+RaidSummonPlusCompatibility.lua
 RaidSummonPlusSoulstone.lua
 RaidSummonPlusRitualofSouls.lua
+RaidSummonPlusOptions.lua

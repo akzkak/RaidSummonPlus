@@ -1,0 +1,149 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+<script file="RaidSummonPlusOptions.lua"/>
+
+	<!-- Font Definition (matching main addon) -->
+	<Font name="RaidSummonPlus_GameFontHeader" font="Interface\AddOns\RaidSummonPlus\fonts\Expressway.ttf" virtual="true">
+		<FontHeight>
+			<AbsValue val="11"/>
+		</FontHeight>
+		<Color r="1" g="1" b="1"/>
+	</Font>
+
+	<!-- Button Template (matching main addon) -->
+	<Button name="RaidSummonPlus_TitleButton_Template" virtual="true">
+		<Size>
+			<AbsDimension x="12" y="12"/>
+		</Size>
+		<Anchors>
+			<Anchor point="RIGHT"/>
+		</Anchors>
+	</Button>
+
+	<!-- Main Options Frame -->
+	<Frame name="RaidSummonPlusOptionsFrame" frameStrata="DIALOG" toplevel="true" movable="true" enableMouse="true" hidden="true" parent="UIParent" clampedToScreen="true">
+		<Size>
+			<AbsDimension x="220" y="400"/>
+		</Size>
+		<Anchors>
+			<Anchor point="CENTER"/>
+		</Anchors>
+		<Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" tile="true"></Backdrop>
+		<Frames>
+			<!-- Title Frame -->
+			<Frame name="$parentTitleFrame" hidden="false">
+				<Size>
+					<AbsDimension x="220" y="18"/>
+				</Size>
+				<Layers>
+					<Layer level="OVERLAY">
+						<FontString name="$parentTitle" inherits="RaidSummonPlus_GameFontHeader" text="RaidSummonPlus Options">
+							<Anchors>
+								<Anchor point="TOPLEFT" relativeTo="$parent" relativePoint="TOPLEFT">
+									<Offset>
+										<AbsDimension x="3" y="-2"/>
+									</Offset>
+								</Anchor>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+				<Backdrop bgFile="Interface\DialogFrame\UI-DialogBox-Background" tile="true"></Backdrop>
+				<Anchors>
+					<Anchor point="TOPLEFT">
+						<Offset>
+							<AbsDimension x="0" y="0"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Frames>
+					<!-- Close Button -->
+					<Button name="$parentCloseButton" inherits="RaidSummonPlus_TitleButton_Template">
+						<Scripts>
+							<OnClick>
+								RaidSummonPlusOptionsFrame:Hide()
+							</OnClick>
+						</Scripts>
+						<NormalTexture file="Interface\AddOns\RaidSummonPlus\img\close"/>
+						<HighlightTexture file="Interface\AddOns\RaidSummonPlus\img\close" alphaMode="ADD"/>
+						<Anchors>
+							<Anchor point="RIGHT" relativeTo="$parent" relativePoint="RIGHT">
+								<Offset>
+									<AbsDimension x="-5" y="0"/>
+								</Offset>
+							</Anchor>
+						</Anchors>
+					</Button>
+				</Frames>
+			</Frame>
+			<!-- Options Content Area - checkboxes will be created dynamically in Lua -->
+			<Frame name="$parentContentArea">
+				<Size>
+					<AbsDimension x="260" y="235"/>
+				</Size>
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeTo="$parentTitleFrame" relativePoint="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="10" y="-10"/>
+						</Offset>
+					</Anchor>
+				</Anchors>
+				<Layers>
+					<Layer level="OVERLAY">
+						<!-- Summon Announcements Header -->
+						<FontString name="$parentSummonHeader" inherits="RaidSummonPlus_GameFontHeader" text="Summon Announcements">
+							<Anchors>
+								<Anchor point="TOPLEFT">
+									<Offset>
+										<AbsDimension x="3" y="-5"/>
+									</Offset>
+								</Anchor>
+							</Anchors>
+						</FontString>
+						
+						<!-- Heartstone Announcements Header -->
+						<FontString name="$parentSoulstoneHeader" inherits="RaidSummonPlus_GameFontHeader" text="Heartstone Announcements">
+							<Anchors>
+								<Anchor point="TOPLEFT">
+									<Offset>
+										<AbsDimension x="3" y="-75"/>
+									</Offset>
+								</Anchor>
+							</Anchors>
+						</FontString>
+						
+						<!-- Miscellaneous Header -->
+						<FontString name="$parentMiscHeader" inherits="RaidSummonPlus_GameFontHeader" text="Miscellaneous">
+							<Anchors>
+								<Anchor point="TOPLEFT">
+									<Offset>
+										<AbsDimension x="3" y="-120"/>
+									</Offset>
+								</Anchor>
+							</Anchors>
+						</FontString>
+					</Layer>
+				</Layers>
+			</Frame>
+
+		</Frames>
+		<Scripts>
+			<OnLoad>
+				this:RegisterForDrag("LeftButton")
+				RaidSummonPlusOptions_OnLoad();
+			</OnLoad>
+			<OnShow>
+				RaidSummonPlusOptions_OnShow();
+			</OnShow>
+			<OnHide>
+				RaidSummonPlusOptions_OnHide();
+			</OnHide>
+			<OnDragStart>
+				this:StartMoving();
+			</OnDragStart>
+			<OnDragStop>
+				this:StopMovingOrSizing();
+			</OnDragStop>
+		</Scripts>
+	</Frame>
+
+</Ui>

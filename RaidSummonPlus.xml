@@ -119,6 +119,35 @@
 				</Anchors>
 
 				<Frames>
+					<!-- Invisible button over the header text to make it clickable -->
+					<Button name="RaidSummonPlus_HeaderButton">
+						<Size>
+							<AbsDimension x="80" y="16"/>
+						</Size>
+						<Anchors>
+							<Anchor point="TOPLEFT" relativeTo="RaidSummonPlus_RequestFrame_Header" relativePoint="TOPLEFT">
+								<Offset>
+									<AbsDimension x="0" y="0"/>
+								</Offset>
+							</Anchor>
+						</Anchors>
+						<Scripts>
+							<OnClick>
+								if RaidSummonPlusOptions_Show then
+									RaidSummonPlusOptions_Show()
+								end
+							</OnClick>
+							<OnEnter>
+								-- Change cursor to indicate clickable
+								RaidSummonPlus_RequestFrame_Header:SetTextColor(0.8, 0.8, 1.0, 1.0);
+							</OnEnter>
+							<OnLeave>
+								-- Restore normal color
+								RaidSummonPlus_RequestFrame_Header:SetTextColor(1.0, 1.0, 1.0, 1.0);
+							</OnLeave>
+						</Scripts>
+					</Button>
+
 					<Button name="RaidSummonPlus_CloseButton" inherits="RaidSummonPlus_TitleButton_Template">
 						<Scripts>
 							<OnClick>
@@ -460,5 +489,7 @@
 			</OnDragStop>
 		</Scripts>
 	</Frame>
+
+
 	
 </Ui>

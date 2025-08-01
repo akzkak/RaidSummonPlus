@@ -10,6 +10,14 @@ local SUMMON_FAIL_REASON = nil
 local SUMMON_MESSAGES = {}
 local RITUAL_OF_SUMMONING_SPELL_ID = 698 -- Spell ID for Ritual of Summoning
 
+-- Helper function to output messages only when debug is enabled
+-- This ensures the addon is completely silent unless debug mode is turned on
+function RaidSummonPlus_DebugMessage(message)
+    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. message)
+    end
+end
+
 -- Auto-check constants and variables
 local AUTO_CHECK_INTERVAL = 5.0 -- Check every 5 seconds
 local AUTO_CHECK_FRAME = nil
@@ -23,6 +31,7 @@ local RaidSummonPlusOptions_DefaultSettings = {
     shards  = true,
     debug   = false,
     ritual  = true,    -- New option for Ritual of Souls announcements, on by default
+    rangeCheck = false, -- New option for auto-removing players in range, off by default
     frameX  = nil,     -- Position coordinates
     frameY  = nil,     -- Position coordinates
     framePoint = nil,  -- Anchor point
@@ -37,6 +46,7 @@ function RaidSummonPlus_EventFrame_OnLoad()
     this:RegisterEvent("CHAT_MSG_ADDON")
     this:RegisterEvent("CHAT_MSG_RAID")
     this:RegisterEvent("CHAT_MSG_RAID_LEADER")
+    this:RegisterEvent("CHAT_MSG_PARTY")
     this:RegisterEvent("CHAT_MSG_SAY")
     this:RegisterEvent("CHAT_MSG_YELL")
     this:RegisterEvent("CHAT_MSG_WHISPER")
@@ -51,21 +61,18 @@ function RaidSummonPlus_EventFrame_OnLoad()
     this:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS")
     this:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_PARTY_BUFFS")
     this:RegisterEvent("UNIT_AURA")
+    this:RegisterEvent("PLAYER_ALIVE")  -- Detect when player is resurrected
     
     -- Add UI error event for cooldown detection
     this:RegisterEvent("UI_ERROR_MESSAGE")
     
     -- Commands
     SlashCmdList["RAIDSUMMONPLUS"] = RaidSummonPlus_SlashCommand
-    SLASH_RAIDSUMMONPLUS1 = "/raidsummonplus"
-    SLASH_RAIDSUMMONPLUS2 = "/rsp"
-    -- Maintain compatibility with old commands
-    SlashCmdList["RAIDSUMMON"] = RaidSummonPlus_SlashCommand
-    SLASH_RAIDSUMMON1 = "/raidsummon"
-    SLASH_RAIDSUMMON2 = "/rs"
+    SLASH_RAIDSUMMONPLUS1 = "/rsp"
     MSG_PREFIX_ADD        = "RSPAdd"
     MSG_PREFIX_REMOVE    = "RSPRemove"
     MSG_PREFIX_SOULSTONE = "RSPSoulstone"
+    
     RaidSummonPlusDB = {}
     RaidSummonPlusLoc_Header = "RaidSummonPlus"
     
@@ -120,6 +127,11 @@ end
 function RaidSummonPlus_AutoCheckNearbyPlayers()
     -- Early exit conditions - performance optimization
     if not RaidSummonPlusDB or table.getn(RaidSummonPlusDB) == 0 then
+        return
+    end
+    
+    -- Check if range checking is disabled
+    if not RaidSummonPlusOptions or not RaidSummonPlusOptions["rangeCheck"] then
         return
     end
     
@@ -180,7 +192,17 @@ function RaidSummonPlus_AutoCheckNearbyPlayers()
         if RaidSummonPlus_UnitIDDB then
             for i, v in ipairs(RaidSummonPlus_UnitIDDB) do
                 if v.rName == playerName then
-                    UnitID = "raid"..v.rIndex
+                    -- Use appropriate unit ID based on group type
+                    if GetNumRaidMembers() > 0 then
+                        UnitID = "raid"..v.rIndex
+                    elseif GetNumPartyMembers() > 0 then
+                        if v.rName == UnitName("player") then
+                            UnitID = "player"
+                        else
+                            -- Find the party member index (rIndex - 1 because player is index 1)
+                            UnitID = "party"..(v.rIndex - 1)
+                        end
+                    end
                     break
                 end
             end
@@ -194,7 +216,7 @@ function RaidSummonPlus_AutoCheckNearbyPlayers()
             -- Check if they're in range
             if Check_TargetInRange() then
                 -- Player is in range, remove from summon list
-                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : <" .. playerName .. "> has been summoned already (|cffff0000in range|r)")
+                RaidSummonPlus_DebugMessage("<" .. playerName .. "> has been summoned already (|cffff0000in range|r)")
                 
                 -- Remove from list
                 for i, v in ipairs(RaidSummonPlusDB) do
@@ -259,9 +281,30 @@ function RaidSummonPlus_IsPlayerInGroup(playerName)
     return false
 end
 
--- Set up hover effects for all buttons in the addon with debug throttling and better red handling
-local LAST_HOVER_DEBUG_TIME = 0
-local HOVER_DEBUG_COOLDOWN = 0.5 -- Only log hover debug every 0.5 seconds
+-- Set up hover effects for all buttons in the addon with per-button hover state tracking
+-- This system prevents debug message spam by:
+-- 1. Tracking hover state per button (not globally)
+-- 2. Only logging one enter/leave message per hover session
+-- 3. Including player name in debug messages for better context
+-- 4. Cleaning up states when buttons change or become invisible
+local BUTTON_HOVER_STATES = {} -- Track hover state per button to prevent spam
+
+-- Function to clean up hover states for buttons that are no longer visible or have changed
+function RaidSummonPlus_CleanupHoverStates()
+    -- Clean up hover states for buttons that might no longer be relevant
+    for buttonName, state in pairs(BUTTON_HOVER_STATES) do
+        local button = getglobal(buttonName)
+        if not button or not button:IsVisible() then
+            -- Button no longer exists or is not visible, remove its hover state
+            BUTTON_HOVER_STATES[buttonName] = nil
+        else
+            -- Reset hover state for visible buttons to ensure clean state
+            if state.isHovered then
+                state.isHovered = false
+            end
+        end
+    end
+end
 
 function RaidSummonPlus_SetupAllButtonHoverEffects()
     -- Apply to all summon list buttons
@@ -274,7 +317,8 @@ function RaidSummonPlus_SetupAllButtonHoverEffects()
             
             -- Set up actual hover handlers
             button:SetScript("OnEnter", function()
-                local textName = getglobal(this:GetName() .. "TextName")
+                local buttonName = this:GetName()
+                local textName = getglobal(buttonName .. "TextName")
                 if textName then
                     -- Store original color
                     local r, g, b, a = textName:GetTextColor()
@@ -294,19 +338,26 @@ function RaidSummonPlus_SetupAllButtonHoverEffects()
                         )
                     end
                     
-                    -- Throttled debug message for hover events
+                    -- Debug message only once per button hover session
                     if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-                        local currentTime = GetTime()
-                        if currentTime - LAST_HOVER_DEBUG_TIME > HOVER_DEBUG_COOLDOWN then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : OnEnter triggered for " .. this:GetName())
-                            LAST_HOVER_DEBUG_TIME = currentTime
+                        if not BUTTON_HOVER_STATES[buttonName] or not BUTTON_HOVER_STATES[buttonName].isHovered then
+                            -- Get the player name from the button text for more useful debug info
+                            local playerName = textName:GetText() or "Unknown"
+                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Hover enter: " .. playerName .. " (" .. buttonName .. ")")
+                            
+                            -- Mark this button as currently hovered
+                            if not BUTTON_HOVER_STATES[buttonName] then
+                                BUTTON_HOVER_STATES[buttonName] = {}
+                            end
+                            BUTTON_HOVER_STATES[buttonName].isHovered = true
                         end
                     end
                 end
             end)
             
             button:SetScript("OnLeave", function()
-                local textName = getglobal(this:GetName() .. "TextName")
+                local buttonName = this:GetName()
+                local textName = getglobal(buttonName .. "TextName")
                 if textName and this.originalColor then
                     -- Restore original color
                     textName:SetTextColor(
@@ -316,12 +367,15 @@ function RaidSummonPlus_SetupAllButtonHoverEffects()
                         this.originalColor.a
                     )
                     
-                    -- Throttled debug message for hover events
+                    -- Debug message only once per button hover session
                     if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-                        local currentTime = GetTime()
-                        if currentTime - LAST_HOVER_DEBUG_TIME > HOVER_DEBUG_COOLDOWN then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : OnLeave triggered for " .. this:GetName())
-                            LAST_HOVER_DEBUG_TIME = currentTime
+                        if BUTTON_HOVER_STATES[buttonName] and BUTTON_HOVER_STATES[buttonName].isHovered then
+                            -- Get the player name from the button text for more useful debug info
+                            local playerName = textName:GetText() or "Unknown"
+                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Hover leave: " .. playerName .. " (" .. buttonName .. ")")
+                            
+                            -- Mark this button as no longer hovered
+                            BUTTON_HOVER_STATES[buttonName].isHovered = false
                         end
                     end
                 end
@@ -339,7 +393,8 @@ function RaidSummonPlus_SetupAllButtonHoverEffects()
             
             -- Set up actual hover handlers
             button:SetScript("OnEnter", function()
-                local textName = getglobal(this:GetName() .. "TextName")
+                local buttonName = this:GetName()
+                local textName = getglobal(buttonName .. "TextName")
                 if textName then
                     -- Store original color
                     local r, g, b, a = textName:GetTextColor()
@@ -359,19 +414,26 @@ function RaidSummonPlus_SetupAllButtonHoverEffects()
                         )
                     end
                     
-                    -- Throttled debug message for hover events
+                    -- Debug message only once per button hover session
                     if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-                        local currentTime = GetTime()
-                        if currentTime - LAST_HOVER_DEBUG_TIME > HOVER_DEBUG_COOLDOWN then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : OnEnter triggered for " .. this:GetName())
-                            LAST_HOVER_DEBUG_TIME = currentTime
+                        if not BUTTON_HOVER_STATES[buttonName] or not BUTTON_HOVER_STATES[buttonName].isHovered then
+                            -- Get the player name from the button text for more useful debug info
+                            local playerName = textName:GetText() or "Unknown"
+                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Hover enter: " .. playerName .. " (" .. buttonName .. ")")
+                            
+                            -- Mark this button as currently hovered
+                            if not BUTTON_HOVER_STATES[buttonName] then
+                                BUTTON_HOVER_STATES[buttonName] = {}
+                            end
+                            BUTTON_HOVER_STATES[buttonName].isHovered = true
                         end
                     end
                 end
             end)
             
             button:SetScript("OnLeave", function()
-                local textName = getglobal(this:GetName() .. "TextName")
+                local buttonName = this:GetName()
+                local textName = getglobal(buttonName .. "TextName")
                 if textName and this.originalColor then
                     -- Restore original color
                     textName:SetTextColor(
@@ -381,12 +443,15 @@ function RaidSummonPlus_SetupAllButtonHoverEffects()
                         this.originalColor.a
                     )
                     
-                    -- Throttled debug message for hover events
+                    -- Debug message only once per button hover session
                     if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-                        local currentTime = GetTime()
-                        if currentTime - LAST_HOVER_DEBUG_TIME > HOVER_DEBUG_COOLDOWN then
-                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : OnLeave triggered for " .. this:GetName())
-                            LAST_HOVER_DEBUG_TIME = currentTime
+                        if BUTTON_HOVER_STATES[buttonName] and BUTTON_HOVER_STATES[buttonName].isHovered then
+                            -- Get the player name from the button text for more useful debug info
+                            local playerName = textName:GetText() or "Unknown"
+                            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Hover leave: " .. playerName .. " (" .. buttonName .. ")")
+                            
+                            -- Mark this button as no longer hovered
+                            BUTTON_HOVER_STATES[buttonName].isHovered = false
                         end
                     end
                 end
@@ -551,8 +616,8 @@ end
 
 -- Function to handle mouse entering a name list button - brighten the text color
 function RaidSummonPlus_NameListButton_OnEnter()
-    -- Get the text object for this button
-    local textName = getglobal(this:GetName().."TextName")
+    local buttonName = this:GetName()
+    local textName = getglobal(buttonName .. "TextName")
     if textName then
         -- Store original color values
         local r, g, b, a = textName:GetTextColor()
@@ -563,20 +628,41 @@ function RaidSummonPlus_NameListButton_OnEnter()
             a = a or 1.0
         }
         
-        -- Brighten text by 20%
-        textName:SetTextColor(
-            math.min(1.0, r * 1.2),
-            math.min(1.0, g * 1.2),
-            math.min(1.0, b * 1.2),
-            a or 1.0
-        )
+        -- Special handling for red text (expired soulstones)
+        if r > 0.9 and g < 0.2 and b < 0.2 then
+            -- For red text, add orange glow by increasing green component
+            textName:SetTextColor(1.0, 0.5, 0.0, a or 1.0)
+        else
+            -- Standard brightening for non-red text
+            textName:SetTextColor(
+                math.min(1.0, r * 1.5),
+                math.min(1.0, g * 1.5),
+                math.min(1.0, b * 1.5),
+                a or 1.0
+            )
+        end
+        
+        -- Debug message only once per button hover session
+        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+            if not BUTTON_HOVER_STATES[buttonName] or not BUTTON_HOVER_STATES[buttonName].isHovered then
+                -- Get the player name from the button text for more useful debug info
+                local playerName = textName:GetText() or "Unknown"
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Hover enter: " .. playerName .. " (" .. buttonName .. ")")
+                
+                -- Mark this button as currently hovered
+                if not BUTTON_HOVER_STATES[buttonName] then
+                    BUTTON_HOVER_STATES[buttonName] = {}
+                end
+                BUTTON_HOVER_STATES[buttonName].isHovered = true
+            end
+        end
     end
 end
 
 -- Function to handle mouse leaving a name list button - restore original color
 function RaidSummonPlus_NameListButton_OnLeave()
-    -- Get the text object for this button
-    local textName = getglobal(this:GetName().."TextName")
+    local buttonName = this:GetName()
+    local textName = getglobal(buttonName .. "TextName")
     
     -- Restore original color if available
     if textName and this.originalColor then
@@ -586,6 +672,18 @@ function RaidSummonPlus_NameListButton_OnLeave()
             this.originalColor.b,
             this.originalColor.a
         )
+        
+        -- Debug message only once per button hover session
+        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+            if BUTTON_HOVER_STATES[buttonName] and BUTTON_HOVER_STATES[buttonName].isHovered then
+                -- Get the player name from the button text for more useful debug info
+                local playerName = textName:GetText() or "Unknown"
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Hover leave: " .. playerName .. " (" .. buttonName .. ")")
+                
+                -- Mark this button as no longer hovered
+                BUTTON_HOVER_STATES[buttonName].isHovered = false
+            end
+        end
     end
 end
 
@@ -658,7 +756,7 @@ function RaidSummonPlus_EventFrame_OnEvent()
         -- Ensure hover effects are set up
         RaidSummonPlus_SetupAllButtonHoverEffects()
         
-    elseif event == "CHAT_MSG_SAY" or event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_YELL" or event == "CHAT_MSG_WHISPER" then    
+    elseif event == "CHAT_MSG_SAY" or event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_YELL" or event == "CHAT_MSG_WHISPER" then    
         if string.find(arg1, "^123") then
             -- Debug message to confirm detection
             if RaidSummonPlusOptions.debug then
@@ -668,9 +766,20 @@ function RaidSummonPlus_EventFrame_OnEvent()
             -- Add directly to our own list
             if not RaidSummonPlus_hasValue(RaidSummonPlusDB, arg2) and UnitName("player")~=arg2 then
                 table.insert(RaidSummonPlusDB, arg2)
+                if RaidSummonPlusOptions.debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Added " .. arg2 .. " to summon list")
+                end
+            else
+                if RaidSummonPlusOptions.debug then
+                    if RaidSummonPlus_hasValue(RaidSummonPlusDB, arg2) then
+                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : " .. arg2 .. " already in summon list")
+                    elseif UnitName("player") == arg2 then
+                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Ignoring self (" .. arg2 .. ")")
+                    end
+                end
             end
             
-            -- Sync with other addon users in raid
+            -- Sync with other addon users (RAID channel auto-falls back to PARTY in parties)
             SendAddonMessage(MSG_PREFIX_ADD, arg2, "RAID")
             
             -- Update the UI
@@ -698,6 +807,9 @@ function RaidSummonPlus_EventFrame_OnEvent()
             if RaidSummonPlusSoulstone_ProcessMessage then
                 RaidSummonPlusSoulstone_ProcessMessage(arg2, arg4)
             end
+        elseif RaidSummonPlusCompatibility_HandleMessage and RaidSummonPlusCompatibility_HandleMessage(arg1, arg2, arg4) then
+            -- Message was handled by compatibility module
+            -- No additional processing needed
         end
         
 elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
@@ -835,13 +947,12 @@ elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
         end
         
     elseif event == "SPELLCAST_START" then
-        -- Add debug message to see what spell is being cast
-        if RaidSummonPlusOptions.debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : SPELLCAST_START detected: " .. tostring(arg1))
-        end
-        
         -- Check if this is a manual Ritual of Summoning cast by player
         if arg1 == "Ritual of Summoning" or string.find(string.lower(arg1 or ""), "ritual of summoning") then
+            -- Debug message only for relevant spells (Ritual of Summoning)
+            if RaidSummonPlusOptions.debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : SPELLCAST_START detected: " .. tostring(arg1))
+            end
             -- First debug message: always show the cast detection (matches other warlock format)
             if RaidSummonPlusOptions.debug then
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Detected " .. UnitName("player") .. " casting Ritual of Summoning")
@@ -864,33 +975,14 @@ elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
                     local message, base_message, whisper_message, base_whisper_message, zone_message, subzone_message = ""
                     local bag, slot, texture, count = FindItem("Soul Shard")
                     
-                    -- Prepare the summon messages
-                    base_message = "Summoning <" .. targetName .. ">"
-                    base_whisper_message = "Summoning you"
-                    zone_message = " @" .. GetZoneText()
-                    subzone_message = " @" .. GetSubZoneText()
-                    shards_message = " [" .. count .. " shards]"
-                    message = base_message
-                    whisper_message = base_whisper_message
-
-                    if RaidSummonPlusOptions.zone then
-                        if GetSubZoneText() == "" then
-                            message = message .. zone_message
-                            whisper_message = base_whisper_message .. zone_message
-                        else
-                            message = message .. subzone_message
-                            whisper_message = whisper_message .. subzone_message
-                        end
-                    end
-                    
-                    if RaidSummonPlusOptions.shards then
-                        message = message .. shards_message
-                    end
+                    -- Prepare the summon messages using custom message system
+                    local message, whisper_message, customChannel = RaidSummonPlus_CreateSummonMessage(targetName, count)
                     
                     -- Store messages for sending if summon is successful
                     SUMMON_MESSAGES = {
                         raid = message,
-                        whisper = whisper_message
+                        whisper = whisper_message,
+                        customChannel = customChannel
                     }
                     
                     -- Schedule a function to check if summon was successful
@@ -913,8 +1005,22 @@ elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
                         SUMMON_PENDING = false
                         SUMMON_TIMER = nil
                         
-                        -- Send the messages
-                        SendChatMessage(SUMMON_MESSAGES.raid, "RAID")
+                        -- Send the messages using appropriate channel
+                        if RaidSummonPlusOptions.announceSummon then
+                            if SUMMON_MESSAGES.customChannel then
+                                -- User specified a custom channel
+                                SendChatMessage(SUMMON_MESSAGES.raid, SUMMON_MESSAGES.customChannel)
+                            elseif UnitInRaid("player") then
+                                -- In raid, use RAID channel
+                                SendChatMessage(SUMMON_MESSAGES.raid, "RAID")
+                            elseif GetNumPartyMembers() > 0 then
+                                -- In party, use PARTY channel
+                                SendChatMessage(SUMMON_MESSAGES.raid, "PARTY")
+                            else
+                                -- Solo, just display in chat frame
+                                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. SUMMON_MESSAGES.raid)
+                            end
+                        end
                         
                         if RaidSummonPlusOptions.whisper then
                             SendChatMessage(SUMMON_MESSAGES.whisper, "WHISPER", nil, SUMMON_TARGET)
@@ -961,9 +1067,28 @@ elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
             end
         end
         
+        -- Check if this is a soulstone-related spell for debug purposes
+        local SOULSTONE_SPELL_NAMES = {"Soulstone", "soulstone"}
+        local isSoulstoneSpell = false
+        for _, spellName in ipairs(SOULSTONE_SPELL_NAMES) do
+            if string.find(string.lower(arg1 or ""), string.lower(spellName)) then
+                isSoulstoneSpell = true
+                if RaidSummonPlusOptions.debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : SPELLCAST_START detected: " .. tostring(arg1))
+                end
+                break
+            end
+        end
+        
         -- Also forward the event to the soulstone module
         if RaidSummonPlusSoulstone_HandleEvent then
             RaidSummonPlusSoulstone_HandleEvent(event, arg1)
+        end
+        
+    elseif event == "PLAYER_ALIVE" then
+        -- Handle player resurrection (soulstone used)
+        if RaidSummonPlusSoulstone_OnPlayerAlive then
+            RaidSummonPlusSoulstone_OnPlayerAlive()
         end
     end
 end
@@ -976,6 +1101,8 @@ function RaidSummonPlus_hasValue (tab, val)
     end
     return false
 end
+
+
 
 function RaidSummonPlus_NameListButton_OnClick(button)
     local name = getglobal(this:GetName().."TextName"):GetText()
@@ -991,29 +1118,49 @@ function RaidSummonPlus_NameListButton_OnClick(button)
         if RaidSummonPlus_UnitIDDB then
             for i, v in ipairs(RaidSummonPlus_UnitIDDB) do
                 if v.rName == name then
-                    UnitID = "raid"..v.rIndex
+                    -- Use appropriate unit ID based on group type
+                    if GetNumRaidMembers() > 0 then
+                        UnitID = "raid"..v.rIndex
+                    elseif GetNumPartyMembers() > 0 then
+                        if v.rName == UnitName("player") then
+                            UnitID = "player"
+                        else
+                            -- Find the party member index (rIndex - 1 because player is index 1)
+                            UnitID = "party"..(v.rIndex - 1)
+                        end
+                    end
                 end
             end
             if UnitID then
                 TargetUnit(UnitID)
             end
         else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : no raid found")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : no group found")
         end
     elseif button == "LeftButton" and not IsControlKeyDown() then
         -- Main summon functionality
         RaidSummonPlus_GetRaidMembers()
         if RaidSummonPlus_UnitIDDB then
-            -- Find the raid unit ID for the player
+            -- Find the unit ID for the player
             for i, v in ipairs(RaidSummonPlus_UnitIDDB) do
                 if v.rName == name then
-                    UnitID = "raid"..v.rIndex
+                    -- Use appropriate unit ID based on group type
+                    if GetNumRaidMembers() > 0 then
+                        UnitID = "raid"..v.rIndex
+                    elseif GetNumPartyMembers() > 0 then
+                        if v.rName == UnitName("player") then
+                            UnitID = "player"
+                        else
+                            -- Find the party member index (rIndex - 1 because player is index 1)
+                            UnitID = "party"..(v.rIndex - 1)
+                        end
+                    end
                     break
                 end
             end
             
             if not UnitID then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : <" .. tostring(name) .. "> not found in raid.")
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : <" .. tostring(name) .. "> not found in group.")
                 SendAddonMessage(MSG_PREFIX_REMOVE, name, "RAID")
                 RaidSummonPlus_UpdateList()
                 return
@@ -1046,8 +1193,9 @@ function RaidSummonPlus_NameListButton_OnClick(button)
                 return
             end
             
-            if Check_TargetInRange() then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : <" .. name .. "> has been summoned already (|cffff0000in range|r)")
+            -- Only check range if the option is enabled
+            if RaidSummonPlusOptions and RaidSummonPlusOptions["rangeCheck"] and Check_TargetInRange() then
+                RaidSummonPlus_DebugMessage("<" .. name .. "> has been summoned already (|cffff0000in range|r)")
                 for i, v in ipairs(RaidSummonPlusDB) do
                     if v == name then
                         SendAddonMessage(MSG_PREFIX_REMOVE, name, "RAID")
@@ -1059,33 +1207,14 @@ function RaidSummonPlus_NameListButton_OnClick(button)
                 return
             end
             
-            -- Prepare the summon messages
-            base_message = "Summoning <" .. name .. ">"
-            base_whisper_message = "Summoning you"
-            zone_message = " @" .. GetZoneText()
-            subzone_message = " @" .. GetSubZoneText()
-            shards_message = " [" .. count .. " shards]"
-            message = base_message
-            whisper_message = base_whisper_message
-
-            if RaidSummonPlusOptions.zone then
-                if GetSubZoneText() == "" then
-                    message = message .. zone_message
-                    whisper_message = base_whisper_message .. zone_message
-                else
-                    message = message .. subzone_message
-                    whisper_message = whisper_message .. subzone_message
-                end
-            end
-            
-            if RaidSummonPlusOptions.shards then
-                message = message .. shards_message
-            end
+            -- Prepare the summon messages using custom message system
+            local message, whisper_message, customChannel = RaidSummonPlus_CreateSummonMessage(name, count)
             
             -- Store the messages for sending later if summon is successful
             SUMMON_MESSAGES = {
                 raid = message,
-                whisper = whisper_message
+                whisper = whisper_message,
+                customChannel = customChannel
             }
             
             -- Mark that we're about to cast a summon
@@ -1121,8 +1250,22 @@ function RaidSummonPlus_NameListButton_OnClick(button)
                 SUMMON_PENDING = false
                 SUMMON_TIMER = nil
                 
-                -- Send the messages
-                SendChatMessage(SUMMON_MESSAGES.raid, "RAID")
+                -- Send the messages using appropriate channel
+                if RaidSummonPlusOptions.announceSummon then
+                    if SUMMON_MESSAGES.customChannel then
+                        -- User specified a custom channel
+                        SendChatMessage(SUMMON_MESSAGES.raid, SUMMON_MESSAGES.customChannel)
+                    elseif UnitInRaid("player") then
+                        -- In raid, use RAID channel
+                        SendChatMessage(SUMMON_MESSAGES.raid, "RAID")
+                    elseif GetNumPartyMembers() > 0 then
+                        -- In party, use PARTY channel
+                        SendChatMessage(SUMMON_MESSAGES.raid, "PARTY")
+                    else
+                        -- Solo, just display in chat frame
+                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. SUMMON_MESSAGES.raid)
+                    end
+                end
                 
                 if RaidSummonPlusOptions.whisper then
                     SendChatMessage(SUMMON_MESSAGES.whisper, "WHISPER", nil, SUMMON_TARGET)
@@ -1152,7 +1295,7 @@ function RaidSummonPlus_NameListButton_OnClick(button)
                 end
             end)
         else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : no raid found")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : no group found")
         end
     elseif button == "RightButton" then
         -- Remove functionality - unchanged
@@ -1193,23 +1336,56 @@ function RaidSummonPlus_UpdateList()
                     end
                 end
             end
-
-            -- Sort warlocks first - simplify sorting for Lua 5.0
-            local sortedDB = {}
-            -- First add the warlocks
-            for i, v in ipairs(RaidSummonPlus_BrowseDB) do
-                if v.rVIP then
-                    table.insert(sortedDB, v)
-                end
-            end
-            -- Then add the others
-            for i, v in ipairs(RaidSummonPlus_BrowseDB) do
-                if not v.rVIP then
-                    table.insert(sortedDB, v)
-                end
-            end
-            RaidSummonPlus_BrowseDB = sortedDB
         end
+        
+        -- Also check party members (whether in raid or not)
+        local partynum = GetNumPartyMembers()
+        if (partynum > 0) then
+            for partymember = 1, partynum do
+                local rName = UnitName("party"..partymember)
+                local rClass = UnitClass("party"..partymember)
+                -- Check party data against summon list
+                for i, v in ipairs(RaidSummonPlusDB) do 
+                    if v == rName then
+                        -- Only add if not already added from raid
+                        local alreadyExists = false
+                        for j, existing in ipairs(RaidSummonPlus_BrowseDB) do
+                            if existing and existing.rName == rName then
+                                alreadyExists = true
+                                break
+                            end
+                        end
+                        if not alreadyExists then
+                            RaidSummonPlus_BrowseDB[i] = {}
+                            RaidSummonPlus_BrowseDB[i].rName = rName
+                            RaidSummonPlus_BrowseDB[i].rClass = rClass
+                            RaidSummonPlus_BrowseDB[i].rIndex = i
+                            if rClass == "Warlock" then
+                                RaidSummonPlus_BrowseDB[i].rVIP = true
+                            else
+                                RaidSummonPlus_BrowseDB[i].rVIP = false
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Sort warlocks first - simplify sorting for Lua 5.0
+        local sortedDB = {}
+        -- First add the warlocks
+        for i, v in ipairs(RaidSummonPlus_BrowseDB) do
+            if v.rVIP then
+                table.insert(sortedDB, v)
+            end
+        end
+        -- Then add the others
+        for i, v in ipairs(RaidSummonPlus_BrowseDB) do
+            if not v.rVIP then
+                table.insert(sortedDB, v)
+            end
+        end
+        RaidSummonPlus_BrowseDB = sortedDB
         
         -- Update UI elements
         local visibleListItems = 0
@@ -1273,67 +1449,31 @@ function RaidSummonPlus_UpdateList()
 			end
 		end
         
+        -- Clean up hover states for buttons that are no longer visible
+        RaidSummonPlus_CleanupHoverStates()
+        
         -- Make sure to set up hover effects after updating the list
         RaidSummonPlus_SetupAllButtonHoverEffects()
-	else
-		-- Not a warlock, always hide the frame
-		if RaidSummonPlus_RequestFrame then
-			HideUIPanel(RaidSummonPlus_RequestFrame)
-		end
-	end
+    end
+    
+    -- Not a warlock, always hide the frame
+    if UnitClass("player") ~= "Warlock" then
+        if RaidSummonPlus_RequestFrame then
+            HideUIPanel(RaidSummonPlus_RequestFrame)
+        end
+    end
 end
 
 --Slash Handler
 function RaidSummonPlus_SlashCommand(msg)
 	if msg == "help" then
 		DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus usage:")
-		DEFAULT_CHAT_FRAME:AddMessage("/rsp or /raidsummonplus or /rs or /raidsummon { help | show | zone | whisper | shards | ritual | debug | soulstone | addsoulstone }")
+		DEFAULT_CHAT_FRAME:AddMessage("/rsp { help | options | debug }")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9help|r: prints out this help")
-		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9show|r: shows the current summon list")
-		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9zone|r: toggles zoneinfo in /ra and /w")
-		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9whisper|r: toggles the usage of /w")
-		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9shards|r: toggles shards count when you announce a summon in /ra")
-		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9ritual|r: toggles Ritual of Souls announcements")
+		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9options|r: opens the options panel")
 		DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9debug|r: toggles additional debug messages")
-        DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9soulstone|r or |cff9482c9ss|r: scan for active Soulstones")
-        DEFAULT_CHAT_FRAME:AddMessage(" - |cff9482c9addsoulstone|r or |cff9482c9testss|r: adds a debug soulstone (10 sec duration)")
 		DEFAULT_CHAT_FRAME:AddMessage("To drag the frame use left mouse button")
-	elseif msg == "show" then
-		for i, v in ipairs(RaidSummonPlusDB) do
-			DEFAULT_CHAT_FRAME:AddMessage(tostring(v))
-		end
-	elseif msg == "zone" then
-		if RaidSummonPlusOptions["zone"] == true then
-			RaidSummonPlusOptions["zone"] = false
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - zoneinfo: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["zone"] == false then
-			RaidSummonPlusOptions["zone"] = true
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - zoneinfo: |cff00ff00enabled|r")
-		end
-elseif msg == "whisper" then
-		if RaidSummonPlusOptions["whisper"] == true then
-			RaidSummonPlusOptions["whisper"] = false
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - whisper: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["whisper"] == false then
-			RaidSummonPlusOptions["whisper"] = true
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - whisper: |cff00ff00enabled|r")
-		end
-	elseif msg == "shards" then
-		if RaidSummonPlusOptions["shards"] == true then
-	       RaidSummonPlusOptions["shards"] = false
-	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - shards: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["shards"] == false then
-	       RaidSummonPlusOptions["shards"] = true
-	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - shards: |cff00ff00enabled|r")
-		end
-	elseif msg == "ritual" then
-		if RaidSummonPlusOptions["ritual"] == true then
-			RaidSummonPlusOptions["ritual"] = false
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - Ritual of Souls announcements: |cffff0000disabled|r")
-		elseif RaidSummonPlusOptions["ritual"] == false then
-			RaidSummonPlusOptions["ritual"] = true
-			DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - Ritual of Souls announcements: |cff00ff00enabled|r")
-		end
+
 	elseif msg == "debug" then
 		if RaidSummonPlusOptions["debug"] == true then
 	       RaidSummonPlusOptions["debug"] = false
@@ -1342,25 +1482,11 @@ elseif msg == "whisper" then
 	       RaidSummonPlusOptions["debug"] = true
 	       DEFAULT_CHAT_FRAME:AddMessage("RaidSummonPlus - debug: |cff00ff00enabled|r")
 		end
-	elseif msg == "soulstone" or msg == "ss" then
-		DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Scanning for active Soulstones...")
-		if RaidSummonPlusSoulstone_ScanRaid then
-		    RaidSummonPlusSoulstone_ScanRaid(false)
-		end
-    elseif msg == "addsoulstone" or msg == "testss" then
-        -- Add a debug soulstone for testing
-        if RaidSummonPlusSoulstone_AddDebugSoulstone then
-            RaidSummonPlusSoulstone_AddDebugSoulstone()
+	elseif msg == "options" or msg == "config" then
+        if RaidSummonPlusOptions_Show then
+            RaidSummonPlusOptions_Show()
         else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Error - Soulstone module not loaded")
-        end
-    elseif string.find(msg, "^addsoulstone%s+") or string.find(msg, "^testss%s+") then
-        -- Add a debug soulstone for a specific player
-        if RaidSummonPlusSoulstone_AddDebugSoulstone then
-            local _, _, targetName = string.find(msg, "^%S+%s+(.+)")
-            RaidSummonPlusSoulstone_AddDebugSoulstone(targetName)
-        else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Error - Soulstone module not loaded")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Options panel not loaded")
         end
 	else
 		if RaidSummonPlus_RequestFrame and RaidSummonPlus_RequestFrame:IsVisible() then
@@ -1388,19 +1514,45 @@ end
 -- Get and store basic raid member data for targeting
 function RaidSummonPlus_GetRaidMembers()
     local raidnum = GetNumRaidMembers()
+    local partynum = GetNumPartyMembers()
+    
+    RaidSummonPlus_UnitIDDB = {}
+    
     if (raidnum > 0) then
-		RaidSummonPlus_UnitIDDB = {}
-		for i = 1, raidnum do
-		    local rName, rRank, rSubgroup, rLevel, rClass = GetRaidRosterInfo(i)
-			RaidSummonPlus_UnitIDDB[i] = {}
-			if (not rName) then 
-			    rName = "unknown"..i
-			end
-			RaidSummonPlus_UnitIDDB[i].rName    = rName
-			RaidSummonPlus_UnitIDDB[i].rClass   = rClass
-			RaidSummonPlus_UnitIDDB[i].rIndex   = i
-	    end
-	end
+        -- Handle raid members
+        for i = 1, raidnum do
+            local rName, rRank, rSubgroup, rLevel, rClass = GetRaidRosterInfo(i)
+            RaidSummonPlus_UnitIDDB[i] = {}
+            if (not rName) then 
+                rName = "unknown"..i
+            end
+            RaidSummonPlus_UnitIDDB[i].rName    = rName
+            RaidSummonPlus_UnitIDDB[i].rClass   = rClass
+            RaidSummonPlus_UnitIDDB[i].rIndex   = i
+        end
+    elseif (partynum > 0) then
+        -- Handle party members (including player)
+        -- Add the player first
+        local playerName = UnitName("player")
+        local _, playerClass = UnitClass("player")
+        RaidSummonPlus_UnitIDDB[1] = {}
+        RaidSummonPlus_UnitIDDB[1].rName = playerName
+        RaidSummonPlus_UnitIDDB[1].rClass = playerClass
+        RaidSummonPlus_UnitIDDB[1].rIndex = 1
+        
+        -- Add party members
+        for i = 1, partynum do
+            local partyName = UnitName("party"..i)
+            local _, partyClass = UnitClass("party"..i)
+            RaidSummonPlus_UnitIDDB[i + 1] = {}
+            if (not partyName) then 
+                partyName = "unknown"..(i + 1)
+            end
+            RaidSummonPlus_UnitIDDB[i + 1].rName = partyName
+            RaidSummonPlus_UnitIDDB[i + 1].rClass = partyClass
+            RaidSummonPlus_UnitIDDB[i + 1].rIndex = i + 1
+        end
+    end
 end
 
 -- FindItem function from SuperMacro to get the total number of Soul Shards
@@ -1443,4 +1595,116 @@ function Check_TargetInRange()
            return false
        end
    end
+end
+-- Function to create custom summon messages with placeholder support
+function RaidSummonPlus_CreateSummonMessage(targetName, shardCount)
+    -- Debug output if enabled
+    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Creating summon message for " .. targetName .. " with " .. shardCount .. " shards")
+    end
+    
+    local message, whisper_message, customChannel
+    
+    -- Determine default channel
+    local defaultChannel
+    if UnitInRaid("player") then
+        defaultChannel = "RAID"
+    elseif GetNumPartyMembers() > 0 then
+        defaultChannel = "PARTY"
+    else
+        defaultChannel = "SAY"
+    end
+    
+    -- Prepare zone and shard info
+    local zoneText = GetZoneText()
+    local subzoneText = GetSubZoneText()
+    local zoneInfo = (subzoneText ~= "" and subzoneText) or zoneText
+    local shardsInfo = "[" .. shardCount .. " shards]"
+    
+    if RaidSummonPlusOptions and RaidSummonPlusOptions["summonMessage"] and RaidSummonPlusOptions["summonMessage"] ~= "" then
+        -- Use custom message, replace placeholders
+        if RaidSummonPlusOptions.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom message: " .. RaidSummonPlusOptions["summonMessage"])
+        end
+        message = RaidSummonPlusOptions["summonMessage"]
+        message = string.gsub(message, "{targetName}", targetName)
+        message = string.gsub(message, "{zone}", zoneText)
+        message = string.gsub(message, "{subzone}", subzoneText)
+        message = string.gsub(message, "{shards}", shardsInfo)
+        
+        -- Handle specific channel placeholders with smart fallback
+        if string.find(message, "{raid}") then
+            -- Smart channel selection: use RAID if in raid, PARTY if in party
+            if UnitInRaid("player") then
+                customChannel = "RAID"
+            elseif GetNumPartyMembers() > 0 then
+                customChannel = "PARTY"
+            else
+                customChannel = "SAY"  -- Solo fallback
+            end
+            message = string.gsub(message, "{raid}", "")
+        elseif string.find(message, "{party}") then
+            customChannel = "PARTY"
+            message = string.gsub(message, "{party}", "")
+        elseif string.find(message, "{guild}") then
+            customChannel = "GUILD"
+            message = string.gsub(message, "{guild}", "")
+        elseif string.find(message, "{say}") then
+            customChannel = "SAY"
+            message = string.gsub(message, "{say}", "")
+        elseif string.find(message, "{yell}") then
+            customChannel = "YELL"
+            message = string.gsub(message, "{yell}", "")
+        end
+        
+        -- Clean up any extra spaces at the beginning
+        message = string.gsub(message, "^%s+", "")
+        
+        -- Create whisper message using custom whisper message if available
+        if RaidSummonPlusOptions and RaidSummonPlusOptions["whisperMessage"] and RaidSummonPlusOptions["whisperMessage"] ~= "" then
+            if RaidSummonPlusOptions.debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom whisper message: " .. RaidSummonPlusOptions["whisperMessage"])
+            end
+            whisper_message = RaidSummonPlusOptions["whisperMessage"]
+            whisper_message = string.gsub(whisper_message, "{targetName}", targetName)
+            whisper_message = string.gsub(whisper_message, "{zone}", zoneText)
+            whisper_message = string.gsub(whisper_message, "{subzone}", subzoneText)
+            whisper_message = string.gsub(whisper_message, "{shards}", shardsInfo)
+        else
+            if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using default whisper message")
+            end
+            -- Use default whisper message format
+            whisper_message = "Summoning you to: " .. zoneInfo
+        end
+    else
+        -- Use default message format (legacy behavior with zone and shards always included)
+        message = "Summoning <" .. targetName .. "> @" .. zoneInfo .. " " .. shardsInfo
+        -- Create whisper message using custom whisper message if available
+        if RaidSummonPlusOptions and RaidSummonPlusOptions["whisperMessage"] and RaidSummonPlusOptions["whisperMessage"] ~= "" then
+            if RaidSummonPlusOptions.debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom whisper message: " .. RaidSummonPlusOptions["whisperMessage"])
+            end
+            whisper_message = RaidSummonPlusOptions["whisperMessage"]
+            whisper_message = string.gsub(whisper_message, "{targetName}", targetName)
+            whisper_message = string.gsub(whisper_message, "{zone}", zoneText)
+            whisper_message = string.gsub(whisper_message, "{subzone}", subzoneText)
+            whisper_message = string.gsub(whisper_message, "{shards}", shardsInfo)
+        else
+            if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using default whisper message")
+            end
+            -- Use default whisper message format
+            whisper_message = "Summoning you to: " .. zoneInfo
+        end
+    end
+    
+    -- Debug output if enabled
+    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Final message: " .. message)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Final whisper message: " .. whisper_message)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Custom channel: " .. (customChannel or "nil"))
+    end
+    
+    return message, whisper_message, customChannel
 end
