@@ -247,7 +247,7 @@ function RaidSummonPlusOptions_OnShow()
             end
             
             -- MISCELLANEOUS SECTION
-            optionCheckboxes.rangeCheck = createCheckboxOption(contentArea, "RangeCheck", "Auto-remove players in range", SECTION3_START, nil)
+            optionCheckboxes.rangeCheck = createCheckboxOption(contentArea, "RangeCheck", "Auto-remove players in range (40 yd)", SECTION3_START, nil)
             if optionCheckboxes.rangeCheck then
                 optionCheckboxes.rangeCheck:SetScript("OnClick", RaidSummonPlusOptions_RangeCheckToggle)
             end
