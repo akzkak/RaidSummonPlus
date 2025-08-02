@@ -293,7 +293,7 @@ function RaidSummonPlusOptions_OnShow()
         optionCheckboxes.whisper:SetChecked(RaidSummonPlusOptions["whisper"])
     end
     if optionCheckboxes.summonMessage then
-        local defaultMessage = "{raid} Summoning >{targetName}<"
+        local defaultMessage = "{raid} Summoning {targetName} {zone} {shards}"
         local displayMessage = RaidSummonPlusOptions["summonMessage"]
         if displayMessage == "" then
             displayMessage = defaultMessage
@@ -360,7 +360,7 @@ end
 function RaidSummonPlusOptions_SummonMessageChanged()
     if not this then return end
     local text = this:GetText() or ""
-    local defaultMessage = "{raid} Summoning >{targetName}<"
+    local defaultMessage = "{raid} Summoning {targetName} {zone} {shards}"
     
     -- Prevent text corruption by validating input
     if string.len(text) > 200 then
