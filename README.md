@@ -13,7 +13,7 @@ A Warlock raid utility for WoW 1.12.1 that streamlines the summoning process wit
 - **Warlock Coordination**: Detect other warlocks' summons and syncs lists between multiple different addons.
 - **Smart Detection**: Identifies combat status and instance mismatches
 - **Healthstone Announcements**: Announces healing value of healthstones when casting Ritual of Souls based on Master Conjuror talent ranks
-- **Soulstone Tracking**: Monitors active soulstones in your group with timers
+- **Soulstone Tracking**: Monitors active soulstones
 
 ## Usage
  
