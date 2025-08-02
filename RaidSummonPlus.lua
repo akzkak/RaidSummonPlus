@@ -5,7 +5,7 @@
 -- Global variables for main frame UI appearance customization
 -- To customize opacity: 0.0 = fully transparent, 1.0 = fully opaque
 -- Recommended values: 0.7-0.9 for good visibility with transparency
-RAIDSUMMONPLUS_MAIN_BACKGROUND_OPACITY = 0.70     -- Main summon frame background opacity
+RAIDSUMMONPLUS_MAIN_BACKGROUND_OPACITY = 0.80     -- Main summon frame background opacity
 RAIDSUMMONPLUS_TITLE_BACKGROUND_OPACITY = 0.90    -- Title frame background opacity
 RAIDSUMMONPLUS_SOULSTONE_BACKGROUND_OPACITY = 0.70 -- Soulstone frame background opacity
 
@@ -894,7 +894,7 @@ elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
                 if warlockTarget then
                     if RaidSummonPlus_hasValue(RaidSummonPlusDB, warlockTarget) then
                         -- Target found and in our summon list - remove from list
-                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. warlockName .. " is summoning " .. warlockTarget .. " - removing from your list")
+                        RaidSummonPlus_DebugMessage(warlockName .. " is summoning " .. warlockTarget .. " - removing from your list")
                         
                         for i, v in ipairs(RaidSummonPlusDB) do
                             if v == warlockTarget then
@@ -998,7 +998,7 @@ elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
                 -- More specific logic and clearer debug messages (matching other warlock format)
                 if RaidSummonPlus_hasValue(RaidSummonPlusDB, targetName) then
                     -- Target found and in our summon list - use same format as for other warlocks
-                    DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. UnitName("player") .. " is summoning " .. targetName .. " - removing from your list")
+                    RaidSummonPlus_DebugMessage(UnitName("player") .. " is summoning " .. targetName .. " - removing from your list")
                     
                     -- Set up pending summon flags
                     SUMMON_PENDING = true
@@ -1549,6 +1549,63 @@ function RaidSummonPlus_GetClassColour(class)
 	return {r = 0.5, g = 0.5, b = 1}
 end
 
+-- Get a player's name colored by their class
+function RaidSummonPlus_GetColoredPlayerName(playerName)
+    if not playerName then
+        return playerName or ""
+    end
+    
+    -- Try to find the player's class from raid/party members
+    local playerClass = nil
+    
+    -- Check raid members first
+    if UnitInRaid("player") then
+        for i = 1, GetNumRaidMembers() do
+            local name, rank, subgroup, level, class = GetRaidRosterInfo(i)
+            if name == playerName then
+                playerClass = class
+                break
+            end
+        end
+    -- Check party members
+    elseif GetNumPartyMembers() > 0 then
+        -- Check if it's the player themselves
+        if playerName == UnitName("player") then
+            playerClass = UnitClass("player")
+        else
+            -- Check party members
+            for i = 1, GetNumPartyMembers() do
+                local name = UnitName("party"..i)
+                if name == playerName then
+                    playerClass = UnitClass("party"..i)
+                    break
+                end
+            end
+        end
+    else
+        -- Solo - check if it's the player
+        if playerName == UnitName("player") then
+            playerClass = UnitClass("player")
+        end
+    end
+    
+    -- If we found the class, color the name
+    if playerClass then
+        local color = RaidSummonPlus_GetClassColour(string.upper(playerClass))
+        if color then
+            -- Format: |cffRRGGBB[PlayerName]|r
+            local hexColor = string.format("%02x%02x%02x", 
+                math.floor(color.r * 255), 
+                math.floor(color.g * 255), 
+                math.floor(color.b * 255))
+            return "|cff" .. hexColor .. playerName .. "|r"
+        end
+    end
+    
+    -- Fallback to uncolored name if class not found
+    return playerName
+end
+
 -- Get and store basic raid member data for targeting
 function RaidSummonPlus_GetRaidMembers()
     local raidnum = GetNumRaidMembers()
@@ -1665,7 +1722,7 @@ function RaidSummonPlus_CreateSummonMessage(targetName, shardCount)
             DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom message: " .. RaidSummonPlusOptions["summonMessage"])
         end
         message = RaidSummonPlusOptions["summonMessage"]
-        message = string.gsub(message, "{targetName}", targetName)
+        message = string.gsub(message, "{targetName}", RaidSummonPlus_GetColoredPlayerName(targetName))
         message = string.gsub(message, "{zone}", zoneText)
         message = string.gsub(message, "{subzone}", subzoneText)
         message = string.gsub(message, "{shards}", shardsInfo)
@@ -1704,7 +1761,7 @@ function RaidSummonPlus_CreateSummonMessage(targetName, shardCount)
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom whisper message: " .. RaidSummonPlusOptions["whisperMessage"])
             end
             whisper_message = RaidSummonPlusOptions["whisperMessage"]
-            whisper_message = string.gsub(whisper_message, "{targetName}", targetName)
+            whisper_message = string.gsub(whisper_message, "{targetName}", RaidSummonPlus_GetColoredPlayerName(targetName))
             whisper_message = string.gsub(whisper_message, "{zone}", zoneText)
             whisper_message = string.gsub(whisper_message, "{subzone}", subzoneText)
             whisper_message = string.gsub(whisper_message, "{shards}", shardsInfo)
@@ -1716,15 +1773,15 @@ function RaidSummonPlus_CreateSummonMessage(targetName, shardCount)
             whisper_message = "Summoning you to: " .. zoneInfo
         end
     else
-        -- Use default message format (legacy behavior with zone and shards always included)
-        message = "Summoning <" .. targetName .. "> @" .. zoneInfo .. " " .. shardsInfo
+        -- Use default message format (simple format)
+        message = "Summoning [" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]"
         -- Create whisper message using custom whisper message if available
         if RaidSummonPlusOptions and RaidSummonPlusOptions["whisperMessage"] and RaidSummonPlusOptions["whisperMessage"] ~= "" then
             if RaidSummonPlusOptions.debug then
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom whisper message: " .. RaidSummonPlusOptions["whisperMessage"])
             end
             whisper_message = RaidSummonPlusOptions["whisperMessage"]
-            whisper_message = string.gsub(whisper_message, "{targetName}", targetName)
+            whisper_message = string.gsub(whisper_message, "{targetName}", RaidSummonPlus_GetColoredPlayerName(targetName))
             whisper_message = string.gsub(whisper_message, "{zone}", zoneText)
             whisper_message = string.gsub(whisper_message, "{subzone}", subzoneText)
             whisper_message = string.gsub(whisper_message, "{shards}", shardsInfo)

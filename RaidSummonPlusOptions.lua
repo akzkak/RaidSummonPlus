@@ -4,7 +4,7 @@
 -- Global variables for UI appearance customization
 -- To customize opacity: 0.0 = fully transparent, 1.0 = fully opaque
 -- Recommended values: 0.7-0.9 for good visibility with transparency
-RAIDSUMMONPLUS_OPTIONS_BACKGROUND_OPACITY = 0.70  -- Main frame background opacity
+RAIDSUMMONPLUS_OPTIONS_BACKGROUND_OPACITY = 0.80  -- Main frame background opacity
 RAIDSUMMONPLUS_OPTIONS_TITLE_OPACITY = 0.90       -- Title frame background opacity  
 RAIDSUMMONPLUS_OPTIONS_EDITBOX_OPACITY = 1.0      -- EditBox background opacity (keep at 1.0 for readability)
 
@@ -293,7 +293,7 @@ function RaidSummonPlusOptions_OnShow()
         optionCheckboxes.whisper:SetChecked(RaidSummonPlusOptions["whisper"])
     end
     if optionCheckboxes.summonMessage then
-        local defaultMessage = "{raid} Summoning {targetName} {zone} {shards}"
+        local defaultMessage = "Summoning [{targetName}]"
         local displayMessage = RaidSummonPlusOptions["summonMessage"]
         if displayMessage == "" then
             displayMessage = defaultMessage
@@ -360,7 +360,7 @@ end
 function RaidSummonPlusOptions_SummonMessageChanged()
     if not this then return end
     local text = this:GetText() or ""
-    local defaultMessage = "{raid} Summoning {targetName} {zone} {shards}"
+    local defaultMessage = "Summoning [{targetName}]"
     
     -- Prevent text corruption by validating input
     if string.len(text) > 200 then
