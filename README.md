@@ -37,7 +37,7 @@ A Warlock raid utility for WoW 1.12.1 that streamlines the summoning process wit
 
 - Cross-addon compatibility
 - New options panel
-- Added Soulstone tracking with timers
+- Added Soulstone tracking
 - Improved warlock coordination
 - Enhanced UI with improved hover effects and class coloring
 - Fixed frame layout and positioning
