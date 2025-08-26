@@ -1,16 +1,14 @@
 # RaidSummonPlus
 
-<img width="403" height="679" alt="WoW_02-08-25 (3)" src="https://github.com/user-attachments/assets/ef278a96-1411-46ce-9521-11771c677c20" />
-<img width="187" height="250" alt="WoW_02-08-25 (2)" src="https://github.com/user-attachments/assets/42993c56-9b42-47c8-bd1b-ab43fa256b34" />
+<img width="431" height="729" alt="WoW_26-08-25" src="https://github.com/user-attachments/assets/546e5489-3821-41ed-80df-e8fe08c2b348" />
+<img width="187" height="254" alt="WoW_26-08-25 (2)" src="https://github.com/user-attachments/assets/45afc9bc-ce10-440a-81e3-0fa2634dc36f" />
 
-
-
-A Warlock raid utility for WoW 1.12.1 that streamlines the summoning process with auto-detection of combat, instance mismatches, and coordinated summon lists.
+A Warlock raid utility for WoW 1.12.1 that streamlines the summoning process with auto-detection of combat, instance mismatches, coordinated summon lists, and cross-addon compatibility that keeps your queue in sync with other popular summon addons.
 
 ## Features
 
 - **Automated Summon List**: Detects "123" messages and builds a shared summon queue
-- **Warlock Coordination**: Detect other warlocks' summons and syncs lists between multiple different addons.
+- **Warlock Coordination & Cross-Addon Sync**: Detects other warlocks' summons and keeps your list synchronized with other addons used by your raid (Capslock, LockPort, RaidSummon)
 - **Smart Detection**: Identifies combat status and instance mismatches
 - **Healthstone Announcements**: Announces healing value of healthstones when casting Ritual of Souls based on Master Conjuror talent ranks
 - **Soulstone Tracking**: Monitors active soulstones
