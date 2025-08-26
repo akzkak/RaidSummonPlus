@@ -1,5 +1,5 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
-<script file="RaidSummonPlusOptions.lua"/>
+<Script file="RaidSummonPlusOptions.lua"/>
 
 	<!-- Font Definition (matching main addon) -->
 	<Font name="RaidSummonPlus_GameFontHeader" font="Interface\AddOns\RaidSummonPlus\fonts\Expressway.ttf" virtual="true">
@@ -84,6 +84,12 @@
 					<Anchor point="TOPLEFT" relativeTo="$parentTitleFrame" relativePoint="BOTTOMLEFT">
 						<Offset>
 							<AbsDimension x="10" y="-10"/>
+						</Offset>
+					</Anchor>
+					<!-- New: bottom anchored so content fills to parent bottom padding -->
+					<Anchor point="BOTTOMLEFT" relativeTo="$parent" relativePoint="BOTTOMLEFT">
+						<Offset>
+							<AbsDimension x="10" y="10"/>
 						</Offset>
 					</Anchor>
 				</Anchors>

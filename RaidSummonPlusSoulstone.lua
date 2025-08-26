@@ -623,17 +623,9 @@ function RaidSummonPlusSoulstone_ScanRaid(silent)
             -- Player still has buff - mark as active
             entry.status = SOULSTONE_STATUS.ACTIVE
         else
-            -- Player no longer has buff
-            if entry.isSelfCast and SOULSTONE_CAST_TIMERS[entry.name] then
-                -- For self-cast soulstones, only mark expired if our timer says so
-                -- (buff might have been used for resurrection)
-                if SOULSTONE_CAST_TIMERS[entry.name] <= 0 then
-                    entry.status = SOULSTONE_STATUS.EXPIRED
-                end
-            else
-                -- For non-self-cast or no timer, mark as expired if no buff
-                entry.status = SOULSTONE_STATUS.EXPIRED
-            end
+            -- Buff not present: mark as expired immediately and clear any self-cast timer
+            entry.status = SOULSTONE_STATUS.EXPIRED
+            SOULSTONE_CAST_TIMERS[entry.name] = nil
         end
     end
     

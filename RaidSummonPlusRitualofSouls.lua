@@ -152,16 +152,20 @@ function RaidSummonPlusRitualofSouls_HandleSpellCast(spellName)
     
     -- Create announcement message
     local message, customChannel
-    -- Always use the stored message (should never be nil/empty with proper defaults)
+    -- Check if user has set a custom message
     if RaidSummonPlusOptions and RaidSummonPlusOptions["ritualMessage"] and RaidSummonPlusOptions["ritualMessage"] ~= "" then
         -- Use stored message, replace placeholders
         message = RaidSummonPlusOptions["ritualMessage"]
         message = string.gsub(message, "{healValue}", healValue)
+        message = string.gsub(message, "{healvalue}", healValue)
         message = string.gsub(message, "{talentRank}", talentRank)
+        message = string.gsub(message, "{talentrank}", talentRank)
         if talentRank > 0 then
             message = string.gsub(message, "{masterConjuror}", "(Master Conjuror Rank " .. talentRank .. ")")
+            message = string.gsub(message, "{masterconjuror}", "(Master Conjuror Rank " .. talentRank .. ")")
         else
             message = string.gsub(message, "{masterConjuror}", "")
+            message = string.gsub(message, "{masterconjuror}", "")
         end
         
         -- Handle specific channel placeholders with smart fallback
@@ -192,45 +196,29 @@ function RaidSummonPlusRitualofSouls_HandleSpellCast(spellName)
         -- Clean up any extra spaces at the beginning
         message = string.gsub(message, "^%s+", "")
     else
-        -- Fallback for users who somehow have empty/nil message (shouldn't happen with proper defaults)
-        message = "Cookie " .. healValue
-        customChannel = "SAY"
+        -- Empty message means disabled - just return early
+        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Ritual message is empty, announcements disabled")
+        end
+        return true
     end
     
-    -- Send to appropriate chat
-    local finalChannel = customChannel or defaultChannel
-    
-    -- Debug output if enabled
-    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Custom Channel: " .. (customChannel or "nil"))
-        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Default Channel: " .. defaultChannel)
-        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Final Channel: " .. finalChannel)
-        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Message: " .. message)
+    -- Send using selected ritual channels
+    local sent = false
+    if RaidSummonPlusOptions["ritualChannelRaid"] and UnitInRaid("player") then
+        SendChatMessage(message, "RAID"); sent = true
     end
-    
-    if finalChannel == "SAY" and customChannel then
-        -- User explicitly chose SAY channel
-        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Sending to SAY chat")
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Message length: " .. string.len(message))
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : About to call SendChatMessage")
-        end
-        SendChatMessage(message, "SAY")
-        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : SendChatMessage call completed")
-        end
-    elseif finalChannel == "SAY" and not customChannel then
-        -- Solo player, just display in chat frame
-        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Displaying in chat frame (solo)")
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. message)
-        end
-    else
-        -- All other channels
-        if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Sending to " .. finalChannel .. " chat")
-        end
-        SendChatMessage(message, finalChannel)
+    if RaidSummonPlusOptions["ritualChannelParty"] and GetNumPartyMembers() > 0 then
+        SendChatMessage(message, "PARTY"); sent = true
+    end
+    if RaidSummonPlusOptions["ritualChannelSay"] then
+        SendChatMessage(message, "SAY"); sent = true
+    end
+    if RaidSummonPlusOptions["ritualChannelYell"] then
+        SendChatMessage(message, "YELL"); sent = true
+    end
+    if RaidSummonPlusOptions and RaidSummonPlusOptions.debug and not sent then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : No ritual channels selected or available")
     end
     
     return true

@@ -42,7 +42,9 @@ local RaidSummonPlusOptions_DefaultSettings = {
     frameX  = nil,     -- Position coordinates
     frameY  = nil,     -- Position coordinates
     framePoint = nil,  -- Anchor point
-    frameRelativePoint = nil  -- Relative anchor point
+    frameRelativePoint = nil,  -- Relative anchor point
+    summonMessage = "Summoning {targetname}",  -- Default first-install summon message
+    whisperMessage = "Summoning you to {zone}"  -- Default first-install whisper message
 }
 
 -- Event registration function
@@ -790,7 +792,7 @@ function RaidSummonPlus_EventFrame_OnEvent()
         RaidSummonPlus_SetupAllButtonHoverEffects()
         
     elseif event == "CHAT_MSG_SAY" or event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_YELL" or event == "CHAT_MSG_WHISPER" then    
-        if string.find(arg1, "^123") then
+        if string.find(arg1 or "", "123") then
             -- Debug message to confirm detection
             if RaidSummonPlusOptions.debug then
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : Detected 123 from player: " .. arg2)
@@ -1038,24 +1040,31 @@ elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
                         SUMMON_PENDING = false
                         SUMMON_TIMER = nil
                         
-                        -- Send the messages using appropriate channel
-                        if RaidSummonPlusOptions.announceSummon then
-                            if SUMMON_MESSAGES.customChannel then
-                                -- User specified a custom channel
-                                SendChatMessage(SUMMON_MESSAGES.raid, SUMMON_MESSAGES.customChannel)
-                            elseif UnitInRaid("player") then
-                                -- In raid, use RAID channel
-                                SendChatMessage(SUMMON_MESSAGES.raid, "RAID")
-                            elseif GetNumPartyMembers() > 0 then
-                                -- In party, use PARTY channel
-                                SendChatMessage(SUMMON_MESSAGES.raid, "PARTY")
-                            else
-                                -- Solo, just display in chat frame
-                                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. SUMMON_MESSAGES.raid)
+                        -- Send the messages using selected channels
+                        if RaidSummonPlusOptions.announceSummon and SUMMON_MESSAGES.raid and SUMMON_MESSAGES.raid ~= "" then
+                            local sent = false
+                            if RaidSummonPlusOptions["summonChannelRaid"] and UnitInRaid("player") then
+                                SendChatMessage(SUMMON_MESSAGES.raid, "RAID"); sent = true
+                            end
+                            if RaidSummonPlusOptions["summonChannelParty"] and GetNumPartyMembers() > 0 and not UnitInRaid("player") then
+                                 SendChatMessage(SUMMON_MESSAGES.raid, "PARTY"); sent = true
+                             end
+                            if RaidSummonPlusOptions["summonChannelSay"] then
+                                local sayMsg = string.gsub(SUMMON_MESSAGES.raid, "%|c%x%x%x%x%x%x%x%x", "")
+                        sayMsg = string.gsub(sayMsg, "%|r", "")
+                        SendChatMessage(sayMsg, "SAY"); sent = true
+                            end
+                            if RaidSummonPlusOptions["summonChannelYell"] then
+                                local yellMsg = string.gsub(SUMMON_MESSAGES.raid, "%|c%x%x%x%x%x%x%x%x", "")
+                        yellMsg = string.gsub(yellMsg, "%|r", "")
+                        SendChatMessage(yellMsg, "YELL"); sent = true
+                            end
+                            if not sent and RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+                                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : No valid channels selected or available for summon announcement")
                             end
                         end
                         
-                        if RaidSummonPlusOptions.whisper then
+                        if RaidSummonPlusOptions.whisper and SUMMON_MESSAGES.whisper and SUMMON_MESSAGES.whisper ~= "" then
                             SendChatMessage(SUMMON_MESSAGES.whisper, "WHISPER", nil, SUMMON_TARGET)
                         end
                         
@@ -1283,24 +1292,31 @@ function RaidSummonPlus_NameListButton_OnClick(button)
                 SUMMON_PENDING = false
                 SUMMON_TIMER = nil
                 
-                -- Send the messages using appropriate channel
-                if RaidSummonPlusOptions.announceSummon then
-                    if SUMMON_MESSAGES.customChannel then
-                        -- User specified a custom channel
-                        SendChatMessage(SUMMON_MESSAGES.raid, SUMMON_MESSAGES.customChannel)
-                    elseif UnitInRaid("player") then
-                        -- In raid, use RAID channel
-                        SendChatMessage(SUMMON_MESSAGES.raid, "RAID")
-                    elseif GetNumPartyMembers() > 0 then
-                        -- In party, use PARTY channel
-                        SendChatMessage(SUMMON_MESSAGES.raid, "PARTY")
-                    else
-                        -- Solo, just display in chat frame
-                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus|r : " .. SUMMON_MESSAGES.raid)
+                -- Send the messages using selected channels
+                if RaidSummonPlusOptions.announceSummon and SUMMON_MESSAGES.raid and SUMMON_MESSAGES.raid ~= "" then
+                    local sent = false
+                    if RaidSummonPlusOptions["summonChannelRaid"] and UnitInRaid("player") then
+                        SendChatMessage(SUMMON_MESSAGES.raid, "RAID"); sent = true
+                    end
+                    if RaidSummonPlusOptions["summonChannelParty"] and GetNumPartyMembers() > 0 and not UnitInRaid("player") then
+                        SendChatMessage(SUMMON_MESSAGES.raid, "PARTY"); sent = true
+                    end
+                    if RaidSummonPlusOptions["summonChannelSay"] then
+                        local sayMsg = string.gsub(SUMMON_MESSAGES.raid, "%|c%x%x%x%x%x%x%x%x", "")
+                         sayMsg = string.gsub(sayMsg, "%|r", "")
+                         SendChatMessage(sayMsg, "SAY"); sent = true
+                    end
+                    if RaidSummonPlusOptions["summonChannelYell"] then
+                        local yellMsg = string.gsub(SUMMON_MESSAGES.raid, "%|c%x%x%x%x%x%x%x%x", "")
+                          yellMsg = string.gsub(yellMsg, "%|r", "")
+                          SendChatMessage(yellMsg, "YELL"); sent = true
+                    end
+                    if not sent and RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
+                        DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : No valid channels selected or available for summon announcement")
                     end
                 end
                 
-                if RaidSummonPlusOptions.whisper then
+                if RaidSummonPlusOptions.whisper and SUMMON_MESSAGES.whisper and SUMMON_MESSAGES.whisper ~= "" then
                     SendChatMessage(SUMMON_MESSAGES.whisper, "WHISPER", nil, SUMMON_TARGET)
                 end
                 
@@ -1471,17 +1487,45 @@ function RaidSummonPlus_UpdateList()
 		-- Update frame layout now that we've updated all list items
 		RaidSummonPlus_FixFrameLayout()
 		
-		-- Explicitly control frame visibility based on summon list
+		-- Explicitly control frame visibility based on summon list, with soulstone-aware logic
 		if RaidSummonPlus_RequestFrame then
-			if not RaidSummonPlusDB or table.getn(RaidSummonPlusDB) == 0 then
-				-- No summons needed, hide the frame
-				RaidSummonPlus_RequestFrame:Hide()
-			else
+			local hasSummons = (RaidSummonPlusDB and table.getn(RaidSummonPlusDB) > 0)
+			if hasSummons then
 				-- We have summons, show the frame
 				ShowUIPanel(RaidSummonPlus_RequestFrame, 1)
 				
 				-- Apply background opacity settings when frame is shown
 				RaidSummonPlus_ApplyFrameOpacity()
+				if FRAME_VISIBILITY_STATE then FRAME_VISIBILITY_STATE = "SHOWN" end
+			else
+				-- No summons: decide based on soulstones
+				local stones = SOULSTONE_DATA or {}
+				local totalStones = table.getn(stones)
+				if totalStones == 0 then
+					-- No soulstones at all -> hide
+					RaidSummonPlus_RequestFrame:Hide()
+					if FRAME_VISIBILITY_STATE then FRAME_VISIBILITY_STATE = "HIDDEN" end
+				else
+					-- Check if any active soulstones exist
+					local statusActive = (SOULSTONE_STATUS and SOULSTONE_STATUS.ACTIVE) or "ACTIVE"
+					local anyActive = false
+					for i = 1, totalStones do
+						if stones[i] and stones[i].status == statusActive then
+							anyActive = true
+							break
+						end
+					end
+					if anyActive then
+						-- Active soulstones present -> hide
+						RaidSummonPlus_RequestFrame:Hide()
+						if FRAME_VISIBILITY_STATE then FRAME_VISIBILITY_STATE = "HIDDEN" end
+					else
+						-- Only expired soulstones exist -> keep frame open
+						ShowUIPanel(RaidSummonPlus_RequestFrame, 1)
+						RaidSummonPlus_ApplyFrameOpacity()
+						if FRAME_VISIBILITY_STATE then FRAME_VISIBILITY_STATE = "SHOWN" end
+					end
+				end
 			end
 		end
         
@@ -1538,10 +1582,28 @@ function RaidSummonPlus_SlashCommand(msg)
 	end
 end
 
+-- Official class colors for WoW 1.12.1 (exact values)
+if not RaidSummonPlus_CLASS_COLORS then
+    RaidSummonPlus_CLASS_COLORS = {
+        DRUID   = { r = 255/255, g = 124/255, b = 10/255 },   -- #FF7C0A
+        HUNTER  = { r = 170/255, g = 211/255, b = 114/255 },  -- #AAD372
+        MAGE    = { r = 63/255,  g = 199/255, b = 235/255 },  -- #3FC7EB
+        PALADIN = { r = 244/255, g = 140/255, b = 186/255 },  -- #F48CBA
+        PRIEST  = { r = 255/255, g = 255/255, b = 255/255 },  -- #FFFFFF
+        ROGUE   = { r = 255/255, g = 244/255, b = 104/255 },  -- #FFF468
+        SHAMAN  = { r = 0/255,   g = 112/255, b = 221/255 },  -- #0070DD
+        WARLOCK = { r = 135/255, g = 136/255, b = 238/255 },  -- #8788EE
+        WARRIOR = { r = 198/255, g = 155/255, b = 109/255 },  -- #C69B6D
+    }
+end
+
 -- Get class color from WoW's global table
 function RaidSummonPlus_GetClassColour(class)
 	if (class) then
-		local color = RAID_CLASS_COLORS[class]
+        if RaidSummonPlus_CLASS_COLORS and RaidSummonPlus_CLASS_COLORS[class] then
+            return RaidSummonPlus_CLASS_COLORS[class]
+        end
+		local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
 		if (color) then
 			return color
 		end
@@ -1594,10 +1656,11 @@ function RaidSummonPlus_GetColoredPlayerName(playerName)
         local color = RaidSummonPlus_GetClassColour(string.upper(playerClass))
         if color then
             -- Format: |cffRRGGBB[PlayerName]|r
+            -- Use rounding to avoid slightly darker colors due to float precision
             local hexColor = string.format("%02x%02x%02x", 
-                math.floor(color.r * 255), 
-                math.floor(color.g * 255), 
-                math.floor(color.b * 255))
+                math.floor(color.r * 255 + 0.5), 
+                math.floor(color.g * 255 + 0.5), 
+                math.floor(color.b * 255 + 0.5))
             return "|cff" .. hexColor .. playerName .. "|r"
         end
     end
@@ -1722,7 +1785,12 @@ function RaidSummonPlus_CreateSummonMessage(targetName, shardCount)
             DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom message: " .. RaidSummonPlusOptions["summonMessage"])
         end
         message = RaidSummonPlusOptions["summonMessage"]
-        message = string.gsub(message, "{targetName}", RaidSummonPlus_GetColoredPlayerName(targetName))
+        -- First handle the case where user already has brackets around {targetName} (also support lowercase)
+        message = string.gsub(message, "%[%{targetName%}%]", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+        message = string.gsub(message, "%[%{targetname%}%]", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+        -- Then handle the case where user doesn't have brackets (add them)
+        message = string.gsub(message, "{targetName}", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+        message = string.gsub(message, "{targetname}", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
         message = string.gsub(message, "{zone}", zoneText)
         message = string.gsub(message, "{subzone}", subzoneText)
         message = string.gsub(message, "{shards}", shardsInfo)
@@ -1761,36 +1829,50 @@ function RaidSummonPlus_CreateSummonMessage(targetName, shardCount)
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom whisper message: " .. RaidSummonPlusOptions["whisperMessage"])
             end
             whisper_message = RaidSummonPlusOptions["whisperMessage"]
-            whisper_message = string.gsub(whisper_message, "{targetName}", RaidSummonPlus_GetColoredPlayerName(targetName))
+            -- First handle the case where user already has brackets around {targetName}
+            whisper_message = string.gsub(whisper_message, "%[%{targetName%}%]", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+            -- Also support lowercase-only placeholder variant
+            whisper_message = string.gsub(whisper_message, "%[%{targetname%}%]", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+            -- Then handle the case where user doesn't have brackets (add them)
+            whisper_message = string.gsub(whisper_message, "{targetName}", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+            -- Also support lowercase-only placeholder variant
+            whisper_message = string.gsub(whisper_message, "{targetname}", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
             whisper_message = string.gsub(whisper_message, "{zone}", zoneText)
             whisper_message = string.gsub(whisper_message, "{subzone}", subzoneText)
             whisper_message = string.gsub(whisper_message, "{shards}", shardsInfo)
         else
             if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using default whisper message")
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Whisper disabled (empty template)")
             end
-            -- Use default whisper message format
-            whisper_message = "Summoning you to: " .. zoneInfo
+            -- No default whisper; empty template disables whisper
+            whisper_message = ""
         end
     else
-        -- Use default message format (simple format)
-        message = "Summoning [" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]"
+        -- No default message format when summon message template is empty
+        message = ""
         -- Create whisper message using custom whisper message if available
         if RaidSummonPlusOptions and RaidSummonPlusOptions["whisperMessage"] and RaidSummonPlusOptions["whisperMessage"] ~= "" then
             if RaidSummonPlusOptions.debug then
                 DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using custom whisper message: " .. RaidSummonPlusOptions["whisperMessage"])
             end
             whisper_message = RaidSummonPlusOptions["whisperMessage"]
-            whisper_message = string.gsub(whisper_message, "{targetName}", RaidSummonPlus_GetColoredPlayerName(targetName))
+            -- First handle the case where user already has brackets around {targetName}
+            whisper_message = string.gsub(whisper_message, "%[%{targetName%}%]", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+            -- Also support lowercase-only placeholder variant
+            whisper_message = string.gsub(whisper_message, "%[%{targetname%}%]", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+            -- Then handle the case where user doesn't have brackets (add them)
+            whisper_message = string.gsub(whisper_message, "{targetName}", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
+            -- Also support lowercase-only placeholder variant
+            whisper_message = string.gsub(whisper_message, "{targetname}", "[" .. RaidSummonPlus_GetColoredPlayerName(targetName) .. "]")
             whisper_message = string.gsub(whisper_message, "{zone}", zoneText)
             whisper_message = string.gsub(whisper_message, "{subzone}", subzoneText)
             whisper_message = string.gsub(whisper_message, "{shards}", shardsInfo)
         else
             if RaidSummonPlusOptions and RaidSummonPlusOptions.debug then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Using default whisper message")
+                DEFAULT_CHAT_FRAME:AddMessage("|cff9482c9RaidSummonPlus Debug|r : Whisper disabled (empty template)")
             end
-            -- Use default whisper message format
-            whisper_message = "Summoning you to: " .. zoneInfo
+            -- No default whisper; empty template disables whisper
+            whisper_message = ""
         end
     end
     
