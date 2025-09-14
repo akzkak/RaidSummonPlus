@@ -1011,7 +1011,7 @@ elseif event == "CHAT_MSG_SPELL_FRIENDLYPLAYER_BUFF" then
                     local bag, slot, texture, count = FindItem("Soul Shard")
                     
                     -- Prepare the summon messages using custom message system
-                    local message, whisper_message, customChannel = RaidSummonPlus_CreateSummonMessage(targetName, count)
+                    local message, whisper_message, customChannel = RaidSummonPlus_CreateSummonMessage(targetName, count or 0)
                     
                     -- Store messages for sending if summon is successful
                     SUMMON_MESSAGES = {
@@ -1150,6 +1150,7 @@ function RaidSummonPlus_NameListButton_OnClick(button)
     local name = getglobal(this:GetName().."TextName"):GetText()
     local message, base_message, whisper_message, base_whisper_message, whisper_eviltwin_message, zone_message, subzone_message = ""
     local bag,slot,texture,count = FindItem("Soul Shard")
+    count = count or 0  -- Default to 0 if no shards found
     local eviltwin_debuff = "Spell_Shadow_Charm"
     local has_eviltwin = false
     local UnitID = nil
@@ -1716,12 +1717,15 @@ end
 -- FindItem function from SuperMacro to get the total number of Soul Shards
 function FindItem(item)
 	if (not item) then return end
-	item = string.lower(ItemLinkToName(item))
+	local itemName = GetItemInfo(item)
+	if not itemName then return end
+	item = string.lower(itemName)
 	local link
 	for i = 1,23 do
        link = GetInventoryItemLink("player",i)
        if (link) then
-           if (item == string.lower(ItemLinkToName(link))) then
+           local linkItemName = GetItemInfo(link)
+           if linkItemName and (item == string.lower(linkItemName)) then
                 return i, nil, GetInventoryItemTexture('player', i), GetInventoryItemCount('player', i)
            end
        end
@@ -1732,7 +1736,8 @@ function FindItem(item)
        for j = 1,MAX_CONTAINER_ITEMS do
            link = GetContainerItemLink(i,j)
            if (link) then
-               if (item == string.lower(ItemLinkToName(link))) then
+               local linkItemName = GetItemInfo(link)
+               if linkItemName and (item == string.lower(linkItemName)) then
 	               bag, slot = i, j
 	               texture, count = GetContainerItemInfo(i,j)
 	               totalcount = totalcount + count
